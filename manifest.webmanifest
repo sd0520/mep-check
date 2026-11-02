@@ -1,7 +1,7 @@
 {
-  "name": "機電施工查驗",
-  "short_name": "機電查驗",
-  "description": "機電工程現場施工自主檢查，離線可用",
+  "name": "職人百寶箱",
+  "short_name": "百寶箱",
+  "description": "機電自檢・清查資料・沒網路也能用",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

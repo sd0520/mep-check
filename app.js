@@ -92,8 +92,25 @@ function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); }
 function paintSite() {
   $("hdSite").textContent = CFG.name || "尚未設定工地";
   const v = $("hdVendor");
-  v.textContent = CFG.vendor || "";
+  v.textContent = CFG.vendor ? "　" + CFG.vendor : "";
   v.hidden = !CFG.vendor;
+}
+
+/* 橫幅上的今日資訊：年月日、星期、時間、問候語 */
+const WEEKDAY = ["日", "一", "二", "三", "四", "五", "六"];
+function greet(h) {
+  if (h < 5) return "夜深了";
+  if (h < 11) return "早安";
+  if (h < 13) return "午安";
+  if (h < 18) return "午後好";
+  return "晚安";
+}
+function paintClock() {
+  const d = new Date();
+  $("heroWhen").textContent =
+    d.getFullYear() + " 年 " + (d.getMonth() + 1) + " 月 " + d.getDate() + " 日（" +
+    WEEKDAY[d.getDay()] + "）　" + pad(d.getHours(), 2) + ":" + pad(d.getMinutes(), 2);
+  $("heroHi").textContent = greet(d.getHours()) + "，現場辛苦了";
 }
 
 /* ---------- IndexedDB ---------- */
@@ -423,6 +440,133 @@ $("btnImport").onclick = () => {
 };
 
 /* ---------- 後台 ---------- */
+/* ---------- 線上空間（管理者） ---------- */
+const CLOUD_KEY = "mepcheck.cloud";
+let CLOUD = null;
+try { CLOUD = JSON.parse(localStorage.getItem(CLOUD_KEY) || "null"); } catch (e) {}
+function saveCloud() {
+  try {
+    if (CLOUD) localStorage.setItem(CLOUD_KEY, JSON.stringify(CLOUD));
+    else localStorage.removeItem(CLOUD_KEY);
+  } catch (e) {}
+}
+
+/* Apps Script 不接受帶自訂標頭的請求（會觸發 preflight），
+   所以用 text/plain 送出，伺服器端自己 JSON.parse。 */
+async function cloudCall(body, ms) {
+  if (!CLOUD) throw new Error("尚未登入");
+  const ac = new AbortController();
+  const t = setTimeout(() => ac.abort(), ms || 20000);
+  try {
+    const res = await fetch(CLOUD.url, {
+      method: "POST", signal: ac.signal, redirect: "follow",
+      headers: { "Content-Type": "text/plain;charset=utf-8" },
+      body: JSON.stringify(Object.assign({ pass: CLOUD.pass }, body)),
+    });
+    const txt = await res.text();
+    let out; try { out = JSON.parse(txt); } catch (e) {
+      throw new Error("伺服器回應不是預期格式，請確認網址是 /exec 結尾且部署為「所有人」");
+    }
+    if (!out.ok) throw new Error(out.error || "伺服器拒絕");
+    return out;
+  } catch (err) {
+    throw new Error(sayWhy(err));
+  } finally { clearTimeout(t); }
+}
+
+/* 把瀏覽器的原始錯誤翻成現場看得懂的話 */
+function sayWhy(err) {
+  const m = String(err && err.message ? err.message : err);
+  if (err && err.name === "AbortError") return "連線逾時。網路太慢，或照片太多單筆跑不完";
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) {
+    return navigator.onLine
+      ? "連不上這個網址。請確認網址沒打錯，且部署時「誰可以存取」選的是「所有人」"
+      : "目前沒有網路，連不上線上空間";
+  }
+  return m;
+}
+
+function paintCloud(note) {
+  const box = $("cloudBox");
+  box.hidden = !CLOUD;
+  if (!CLOUD) return;
+  $("cloudUrl").textContent = CLOUD.url;
+  const done = records.filter((r) => r.cloudAt).length;
+  $("cloudState").className = "pill " + (done === records.length ? "ok" : "draft");
+  $("cloudState").textContent = "已上傳 " + done + "/" + records.length;
+  $("cloudNote").textContent = note || (CLOUD.lastAt
+    ? "最後上傳：" + new Date(CLOUD.lastAt).toLocaleString("zh-TW")
+    : "尚未上傳過。按「存入線上空間」把本機紀錄與照片送上去。");
+}
+
+$("btnAdmin").onclick = () => {
+  $("cUrl").value = CLOUD ? CLOUD.url : "";
+  $("cPass").value = CLOUD ? CLOUD.pass : "";
+  $("dlgCloud").showModal();
+};
+$("dlgCloud").addEventListener("close", async () => {
+  if ($("dlgCloud").returnValue !== "ok") return;
+  const url = $("cUrl").value.trim(), pass = $("cPass").value.trim();
+  if (!url || !pass) { toast("網址與通行碼都要填"); return; }
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) {
+    toast("網址格式不對，應該是 .../exec 結尾"); return;
+  }
+  const keep = CLOUD;
+  CLOUD = { url, pass };
+  toast("測試連線中…");
+  try {
+    const out = await cloudCall({ action: "ping" }, 25000);
+    CLOUD.lastAt = keep && keep.url === url ? keep.lastAt : 0;
+    saveCloud(); paintCloud();
+    show("vAdmin"); renderAdmin();
+    toast("已登入　線上已有 " + (out.count || 0) + " 筆");
+  } catch (e) {
+    CLOUD = keep; saveCloud(); paintCloud();
+    toast("登入失敗：" + e.message);
+  }
+});
+$("btnCloudOut").onclick = () => {
+  CLOUD = null; saveCloud(); paintCloud();
+  toast("已登出，本機資料不受影響");
+};
+$("btnCloudTest").onclick = async () => {
+  toast("測試中…");
+  try { const o = await cloudCall({ action: "ping" }); paintCloud("連線正常　線上 " + (o.count || 0) + " 筆"); }
+  catch (e) { paintCloud("連線失敗：" + e.message); }
+};
+$("btnCloudPush").onclick = async () => {
+  if (!records.length) { toast("沒有資料可上傳"); return; }
+  const btn = $("btnCloudPush"); btn.disabled = true;
+  let ok = 0, fail = 0, lastErr = "";
+  for (let i = 0; i < records.length; i++) {
+    const r = records[i];
+    paintCloud("上傳中… " + (i + 1) + "/" + records.length + "　" + r.code);
+    try {
+      const photos = [];
+      for (const it of r.items) for (const pid of (it.photos || [])) {
+        const ph = await dbGet("photos", pid); if (!ph) continue;
+        photos.push({ id: pid, item: it.item, b64: await blobToB64(ph.blob) });
+      }
+      await cloudCall({ action: "push", record: r, photos }, 120000);
+      r.cloudAt = Date.now(); await dbPut("records", r); ok++;
+    } catch (e) { fail++; lastErr = e.message; }
+  }
+  CLOUD.lastAt = Date.now(); saveCloud();
+  btn.disabled = false;
+  renderAdmin();
+  paintCloud(fail ? ("完成 " + ok + " 筆，失敗 " + fail + " 筆：" + lastErr)
+    : ("全部 " + ok + " 筆已存入線上空間"));
+  toast(fail ? ("有 " + fail + " 筆失敗") : "已存入線上空間");
+};
+function blobToB64(b) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result).split(",")[1]);
+    fr.onerror = rej;
+    fr.readAsDataURL(b);
+  });
+}
+
 function renderAdmin() {
   sortRecs();
   const openFail = records.filter((r) => r.result === "fail" && !r.fixed).length;
@@ -445,7 +589,9 @@ function renderAdmin() {
   }).join("");
   $("tbody").querySelectorAll("[data-fix]").forEach((b) => { b.onclick = async () => {
     const r = records.find((x) => x.id === b.dataset.fix); if (!r) return;
-    r.fixed = true; await dbPut("records", r); renderAdmin(); toast("已標記為改善完成"); }; });
+    r.fixed = true; r.cloudAt = 0; await dbPut("records", r);
+    renderAdmin(); toast("已標記為改善完成"); }; });
+  paintCloud();
 }
 
 /* ---------- 匯出 ---------- */
@@ -544,6 +690,9 @@ $("exDocx").onclick = async () => {
 /* ---------- 啟動 ---------- */
 (async function boot() {
   paintSite();
+  paintClock();
+  setInterval(paintClock, 20000);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) paintClock(); });
   try {
     idb = await openDB();
     records = await dbAll("records");

@@ -6,11 +6,11 @@
 <meta name="theme-color" content="#1e3350">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="機電查驗">
+<meta name="apple-mobile-web-app-title" content="職人百寶箱">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="icon" href="icon-192.png">
-<title>機電施工查驗</title>
+<title>職人百寶箱</title>
 <style>
 :root{
   --bg:#f2f5f9;--surface:#fff;--surface-2:#e9eef5;--line:#d3dde8;
@@ -50,17 +50,31 @@ header{position:sticky;top:0;z-index:20;color:#fff;overflow:hidden;
   box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 2px 12px rgba(23,35,52,.22)}
 header .wrap{display:flex;align-items:center;gap:.55rem;position:relative;z-index:1}
 header h1{font-size:.98rem;font-weight:700;letter-spacing:.02em;white-space:nowrap}
-/* 橫幅：工地照片 */
-.hero{position:relative;height:clamp(132px,24vh,205px);
+/* 橫幅：工地照片＋今日資訊 */
+.hero{position:relative;min-height:clamp(212px,35vh,296px);display:flex;
   background:url(hero.jpg) center 58%/cover no-repeat;border-bottom:1px solid var(--line)}
 .hero::after{content:"";position:absolute;inset:0;
-  background:linear-gradient(180deg,rgba(30,51,80,.42) 0%,rgba(30,51,80,.06) 38%,
-    rgba(30,51,80,.30) 72%,var(--bg) 100%)}
-.hero .cap{position:absolute;left:0;right:0;bottom:.5rem;z-index:1;color:#fff;
-  text-shadow:0 1px 4px rgba(10,20,34,.75)}
-.hero .cap b{display:block;font-size:.96rem;font-weight:700;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.hero .cap span{font-size:.7rem;font-family:var(--mono);opacity:.9}
+  background:linear-gradient(180deg,rgba(22,40,66,.52) 0%,rgba(22,40,66,.14) 30%,
+    rgba(22,40,66,.52) 64%,rgba(22,40,66,.80) 86%,var(--bg) 100%)}
+.hero .cap{position:relative;z-index:1;align-self:flex-end;width:100%;
+  padding-top:1rem;padding-bottom:.95rem;color:#fff;
+  text-shadow:0 1px 5px rgba(8,16,28,.8)}
+.hero .when{position:absolute;top:.9rem;left:max(16px,env(safe-area-inset-left,0px));
+  background:rgba(12,24,40,.46);border:1px solid rgba(255,255,255,.22);
+  border-radius:999px;padding:.22rem .7rem;font-size:.74rem;
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+  -webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}
+.hero .hi{font-size:.8rem;opacity:.92;margin-bottom:.1rem}
+.hero .cap b{display:block;font-size:1.72rem;font-weight:700;letter-spacing:.06em;
+  line-height:1.2;margin-bottom:.3rem}
+.hero .tag{display:flex;align-items:center;gap:.45rem;font-size:.76rem;opacity:.95}
+.hero .tag::before{content:"";width:1.1rem;height:2px;background:#fff;opacity:.7;
+  flex:0 0 auto;border-radius:1px}
+.hero .site{display:block;font-size:.7rem;font-family:var(--mono);opacity:.8;
+  margin-top:.5rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+.foot{text-align:center;font-size:.74rem;color:var(--fg-dim);margin:1.4rem 0 .2rem;
+  line-height:1.8}
 .spacer{flex:1 1 auto;min-width:0}
 .chipbtn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.14);
   color:#fff;border-radius:999px;
@@ -186,17 +200,22 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 
 <header class="gut">
   <div class="wrap">
-    <h1>機電施工查驗</h1>
+    <h1>職人百寶箱</h1>
     <div class="spacer"></div>
     <button class="chipbtn" id="btnSite">✎ 工地</button>
     <button class="chipbtn" id="btnBackup">💾 備份</button>
   </div>
 </header>
 
-<div class="hero" id="hero"><div class="cap gut">
-  <b id="hdSite">尚未設定工地</b>
-  <span id="hdVendor" hidden></span>
-</div></div>
+<div class="hero" id="hero">
+  <div class="when" id="heroWhen"></div>
+  <div class="cap gut">
+    <div class="hi" id="heroHi"></div>
+    <b>職人百寶箱</b>
+    <span class="tag">機電自檢・清查資料・沒網路也能用</span>
+    <span class="site"><span id="hdSite">尚未設定工地</span><span id="hdVendor" hidden></span></span>
+  </div>
+</div>
 
 <main class="gut">
   <div id="offTip" class="banner" hidden>離線中：填表、拍照照常，資料存在這支手機裡。</div>
@@ -206,6 +225,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     <button class="btn primary block" id="btnNew" style="margin-bottom:1.1rem">＋ 新增查驗</button>
     <div class="sect">本機查驗紀錄</div>
     <div class="card pad" id="listBox"></div>
+    <p class="foot">資料只存在這台手機・換手機前記得先按右上「💾 備份」</p>
+    <div style="text-align:center"><button class="btn sm" id="btnAdmin">🔒 管理者登入</button></div>
   </section>
 
   <!-- 填表 -->
@@ -244,6 +265,22 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <!-- 後台 -->
   <section id="vAdmin" hidden>
     <div class="stats" id="stats"></div>
+
+    <div class="card pad" id="cloudBox" style="margin-bottom:1rem" hidden>
+      <div class="row" style="margin-bottom:.5rem">
+        <b style="font-size:.9rem">☁ 線上空間</b>
+        <span class="pill" id="cloudState"></span>
+        <div class="spacer"></div>
+        <button class="btn sm" id="btnCloudOut">登出</button>
+      </div>
+      <p class="tiny muted mono" id="cloudUrl" style="margin:0 0 .6rem;word-break:break-all"></p>
+      <div class="row">
+        <button class="btn primary" id="btnCloudPush">⬆ 存入線上空間</button>
+        <button class="btn" id="btnCloudTest">測試連線</button>
+      </div>
+      <p class="tiny muted" id="cloudNote" style="margin:.6rem 0 0"></p>
+    </div>
+
     <div class="card pad" style="margin-bottom:1rem">
       <div class="row">
         <button class="btn" id="btnImport">📥 匯入同仁備份</button>
@@ -271,6 +308,19 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <button id="tabSite" aria-pressed="true"><span class="ic">📋</span>現場</button>
   <button id="tabAdmin" aria-pressed="false"><span class="ic">🗂</span>後台</button>
 </nav>
+
+<dialog id="dlgCloud"><form method="dialog" class="dlg">
+  <h3 style="margin-bottom:.6rem">管理者登入</h3>
+  <p class="tiny muted" style="margin:0 0 .8rem">
+    通行碼由線上空間的伺服器驗證，不會存在這個網站的程式裡。
+    網址與通行碼只留在這台裝置。</p>
+  <label class="f"><span>線上空間網址</span>
+    <input type="text" id="cUrl" placeholder="https://script.google.com/macros/s/.../exec"></label>
+  <label class="f"><span>通行碼</span>
+    <input type="text" id="cPass" autocomplete="off"></label>
+  <div class="row"><button class="btn primary" value="ok">測試並登入</button>
+    <button class="btn" value="cancel">取消</button></div>
+</form></dialog>
 
 <dialog id="dlgSite"><form method="dialog" class="dlg">
   <h3 style="margin-bottom:.6rem">工地設定</h3>
