@@ -304,7 +304,7 @@ function renderList() {
   sortRecs();
   const box = $("listBox");
   if (!records.length) {
-    box.innerHTML = `<div class="empty"><div class="big">📋</div><div>尚未有查驗紀錄</div>
+    box.innerHTML = `<div class="empty"><img src="mark.png" alt=""><div>尚未有查驗紀錄</div>
       <div class="tiny" style="margin-top:.3rem">按上方「新增查驗」開始第一筆</div></div>`;
     return;
   }
@@ -341,7 +341,10 @@ $("btnPrint").onclick = async () => {
       <div style="font-size:8pt">${esc(it.item)}　${esc(it.actual || "")}</div></div>`);
   }
   $("printArea").innerHTML = `
-    <h2>施工自主檢查表</h2>
+    <div class="phd"><img src="logo.png" alt="IWA">
+      <div class="t"><b>施工自主檢查表</b>
+        <div>MEP SELF-INSPECTION CHECKLIST</div></div>
+      <div class="n">${esc(draft.code || roc(draft.date))}</div></div>
     <table><tbody>
       <tr><th style="width:18%">工程名稱</th><td colspan="3">${esc(draft.site || CFG.name)}</td></tr>
       <tr><th>承攬廠商</th><td>${esc(draft.vendor || CFG.vendor)}</td>
@@ -499,11 +502,17 @@ $("exDocx").onclick = async () => {
   const p = (t, o) => new Paragraph({ children: [tx2(t, o)] });
   const cell = (t, w, b) => new TableCell({ width: { size: w, type: WidthType.DXA },
     children: [new Paragraph({ children: [tx2(t, { bold: b, size: 18 })] })] });
+  let logo = null;
+  try { logo = await (await fetch("logo.png")).arrayBuffer(); } catch (e) { logo = null; }
   const secs = [];
   for (const r of rows) {
-    const kids = [
+    const kids = [];
+    if (logo) kids.push(new Paragraph({ children: [new ImageRun({ type: "png",
+      data: logo, transformation: { width: 142, height: 46 } })] }));
+    kids.push(
       new Paragraph({ children: [tx2("施工自主檢查表", { bold: true, size: 30 })],
         alignment: AlignmentType.CENTER }),
+      p("編號：" + (r.code || ""), { size: 18 }),
       p("工程名稱：" + (r.site || "")),
       p("分項工程：" + r.subproject + "　承攬廠商：" + (r.vendor || "")),
       p("檢查位置：" + r.zone + " " + r.floor + " " + r.location + "　檢查日期：民國 " + roc(r.date)),
@@ -516,7 +525,7 @@ $("exDocx").onclick = async () => {
           cell("實際抽查情形", 2200, 1), cell("抽查結果", 1460, 1)] })]
           .concat(r.items.map((it) => new TableRow({ children: [
             cell(it.stage, 1100), cell(it.item, 1900), cell(it.std, 2700),
-            cell(it.actual || "", 2200), cell(MARK[it.result] || "", 1460)] }))) })];
+            cell(it.actual || "", 2200), cell(MARK[it.result] || "", 1460)] }))) }));
     for (const it of r.items) for (const pid of (it.photos || [])) {
       const ph = await dbGet("photos", pid); if (!ph) continue;
       kids.push(new Paragraph({ children: [new ImageRun({ type: "jpg",

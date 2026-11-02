@@ -1,8 +1,9 @@
 /* 離線快取：App 外殼 + 匯出用函式庫 */
-const CACHE = 'mepcheck-v1';
+const CACHE = 'mepcheck-v2';
 const SHELL = [
   './', './index.html', './app.js', './manifest.webmanifest',
   './icon-192.png', './icon-512.png',
+  './logo.png', './logo-white.png', './mark.png', './mark-white.png',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
   'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
   'https://cdn.jsdelivr.net/npm/docx@8.5.0/build/index.umd.js'
