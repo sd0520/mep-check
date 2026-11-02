@@ -21,6 +21,7 @@
   --font:"Noto Sans TC","Microsoft JhengHei","PingFang TC",sans-serif;
   --mono:ui-monospace,SFMono-Regular,Menlo,monospace;--r:12px;
   --shadow:0 1px 2px rgba(23,35,52,.05),0 2px 10px rgba(23,35,52,.045);
+  --wash1:rgba(242,245,249,.90);--wash2:rgba(242,245,249,.95);
 }
 @media (prefers-color-scheme:dark){:root{
   --bg:#0e141c;--surface:#19222e;--surface-2:#212c3a;--line:#2e3d50;
@@ -29,10 +30,14 @@
   --ok:#5fcf8e;--ok-soft:#14301f;--bad:#ff8a7e;--bad-soft:#331815;
   --na:#9aa8b8;--na-soft:#222c38;--warn:#e8b45c;--warn-soft:#2e2413;
   --shadow:0 1px 2px rgba(0,0,0,.3),0 2px 10px rgba(0,0,0,.25);
+  --wash1:rgba(14,20,28,.90);--wash2:rgba(14,20,28,.95);
   color-scheme:dark}}
 *{box-sizing:border-box}html,body{margin:0}
-body{background:var(--bg);color:var(--fg);font-family:var(--font);font-size:14px;
+html{background:var(--bg)}
+body{background:transparent;color:var(--fg);font-family:var(--font);font-size:14px;
   line-height:1.6;padding-bottom:5.5rem;-webkit-text-size-adjust:100%}
+body::before{content:"";position:fixed;inset:0;z-index:-1;
+  background:linear-gradient(var(--wash1),var(--wash2)),url(bg.jpg) center/cover no-repeat}
 .gut{padding-left:max(16px,env(safe-area-inset-left,0px));
   padding-right:max(16px,env(safe-area-inset-right,0px))}
 h1,h2,h3,h4{margin:0;line-height:1.3}
@@ -43,15 +48,19 @@ header{position:sticky;top:0;z-index:20;color:#fff;overflow:hidden;
   background:linear-gradient(135deg,var(--brand-ink) 0%,#24395a 55%,var(--brand) 100%);
   padding-top:calc(.6rem + env(safe-area-inset-top,0px));padding-bottom:.6rem;
   box-shadow:0 1px 0 rgba(255,255,255,.07) inset,0 2px 12px rgba(23,35,52,.22)}
-header::after{content:"";position:absolute;right:-2.6rem;top:-2.8rem;width:11rem;height:11rem;
-  background:url(mark-white.png) no-repeat center/contain;opacity:.1;pointer-events:none}
 header .wrap{display:flex;align-items:center;gap:.55rem;position:relative;z-index:1}
-header .brand{display:flex;align-items:center;gap:.55rem;min-width:0}
-header .brand img{height:19px;width:auto;flex:0 0 auto;display:block}
-header .bar{width:1px;height:1.5rem;background:rgba(255,255,255,.3);flex:0 0 auto}
 header h1{font-size:.98rem;font-weight:700;letter-spacing:.02em;white-space:nowrap}
-header .sub{font-size:.7rem;color:#b7c8de;font-family:var(--mono);margin-top:.1rem;
-  position:relative;z-index:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 橫幅：工地照片 */
+.hero{position:relative;height:clamp(132px,24vh,205px);
+  background:url(hero.jpg) center 58%/cover no-repeat;border-bottom:1px solid var(--line)}
+.hero::after{content:"";position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(30,51,80,.42) 0%,rgba(30,51,80,.06) 38%,
+    rgba(30,51,80,.30) 72%,var(--bg) 100%)}
+.hero .cap{position:absolute;left:0;right:0;bottom:.5rem;z-index:1;color:#fff;
+  text-shadow:0 1px 4px rgba(10,20,34,.75)}
+.hero .cap b{display:block;font-size:.96rem;font-weight:700;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hero .cap span{font-size:.7rem;font-family:var(--mono);opacity:.9}
 .spacer{flex:1 1 auto;min-width:0}
 .chipbtn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.14);
   color:#fff;border-radius:999px;
@@ -141,8 +150,7 @@ th{background:var(--surface-2);font-weight:700;font-size:.76rem;white-space:nowr
   color:var(--fg-dim);letter-spacing:.04em}
 td.num{font-family:var(--mono);font-variant-numeric:tabular-nums;white-space:nowrap}
 .empty{text-align:center;padding:2.2rem 1rem;color:var(--fg-dim)}
-.empty img{width:4.4rem;opacity:.22;margin-bottom:.6rem}
-@media (prefers-color-scheme:dark){.empty img{filter:invert(1) brightness(1.6)}}
+.empty .big{font-size:2rem;margin-bottom:.4rem;opacity:.5}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:5.2rem;z-index:60;
   background:var(--fg);color:var(--bg);padding:.6rem 1rem;border-radius:999px;
   font-size:.85rem;max-width:88vw;text-align:center}
@@ -157,11 +165,11 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 #printArea{display:none}
 @media print{
   body{background:#fff;color:#000;padding:0}
-  header,.tabbar,main{display:none!important}
+  header,.tabbar,main,.hero{display:none!important}
+  body::before{display:none!important}
   #printArea{display:block;font-size:11pt}
   #printArea .phd{display:flex;align-items:flex-end;gap:8pt;
     border-bottom:1.6pt solid #2a4465;padding-bottom:3pt;margin-bottom:6pt}
-  #printArea .phd img{height:9mm}
   #printArea .phd .t{flex:1;text-align:center}
   #printArea .phd .t b{font-size:15pt;letter-spacing:.3em}
   #printArea .phd .t div{font-size:7pt;color:#5b6c82;letter-spacing:.08em}
@@ -178,17 +186,17 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 
 <header class="gut">
   <div class="wrap">
-    <div class="brand">
-      <img src="logo-white.png" alt="IWA" width="59" height="19">
-      <div class="bar"></div>
-      <h1>機電施工查驗</h1>
-    </div>
+    <h1>機電施工查驗</h1>
     <div class="spacer"></div>
     <button class="chipbtn" id="btnSite">✎ 工地</button>
     <button class="chipbtn" id="btnBackup">💾 備份</button>
   </div>
-  <div class="sub" id="hdSite">尚未設定工地</div>
 </header>
+
+<div class="hero" id="hero"><div class="cap gut">
+  <b id="hdSite">尚未設定工地</b>
+  <span id="hdVendor" hidden></span>
+</div></div>
 
 <main class="gut">
   <div id="offTip" class="banner" hidden>離線中：填表、拍照照常，資料存在這支手機裡。</div>
@@ -252,7 +260,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
         <thead><tr><th>編號</th><th>日期</th><th>區域樓層</th><th>分項工程</th><th>流程</th>
           <th>位置</th><th>檢查人</th><th>合格</th><th>缺失</th><th>狀態</th><th></th></tr></thead>
         <tbody id="tbody"></tbody></table></div>
-      <div class="empty" id="tblEmpty"><img src="mark.png" alt=""><div>還沒有查驗紀錄</div></div>
+      <div class="empty" id="tblEmpty"><div class="big">🗂</div><div>還沒有查驗紀錄</div></div>
     </div>
   </section>
 </main>

@@ -89,7 +89,12 @@ const CFG_KEY = "mepcheck.site";
 let CFG = { name: "", vendor: "", by: "" };
 try { Object.assign(CFG, JSON.parse(localStorage.getItem(CFG_KEY) || "{}")); } catch (e) {}
 function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); } catch (e) {} }
-function paintSite() { $("hdSite").textContent = CFG.name || "尚未設定工地"; }
+function paintSite() {
+  $("hdSite").textContent = CFG.name || "尚未設定工地";
+  const v = $("hdVendor");
+  v.textContent = CFG.vendor || "";
+  v.hidden = !CFG.vendor;
+}
 
 /* ---------- IndexedDB ---------- */
 let idb = null;
@@ -127,6 +132,7 @@ async function urlFor(pid) {
 const views = ["vList", "vForm", "vAdmin"];
 function show(v) {
   views.forEach((x) => { $(x).hidden = x !== v; });
+  $("hero").hidden = v === "vForm";
   $("tabSite").setAttribute("aria-pressed", String(v !== "vAdmin"));
   $("tabAdmin").setAttribute("aria-pressed", String(v === "vAdmin"));
   window.scrollTo(0, 0);
@@ -304,7 +310,7 @@ function renderList() {
   sortRecs();
   const box = $("listBox");
   if (!records.length) {
-    box.innerHTML = `<div class="empty"><img src="mark.png" alt=""><div>尚未有查驗紀錄</div>
+    box.innerHTML = `<div class="empty"><div class="big">📋</div><div>尚未有查驗紀錄</div>
       <div class="tiny" style="margin-top:.3rem">按上方「新增查驗」開始第一筆</div></div>`;
     return;
   }
@@ -341,7 +347,7 @@ $("btnPrint").onclick = async () => {
       <div style="font-size:8pt">${esc(it.item)}　${esc(it.actual || "")}</div></div>`);
   }
   $("printArea").innerHTML = `
-    <div class="phd"><img src="logo.png" alt="IWA">
+    <div class="phd">
       <div class="t"><b>施工自主檢查表</b>
         <div>MEP SELF-INSPECTION CHECKLIST</div></div>
       <div class="n">${esc(draft.code || roc(draft.date))}</div></div>
@@ -502,13 +508,9 @@ $("exDocx").onclick = async () => {
   const p = (t, o) => new Paragraph({ children: [tx2(t, o)] });
   const cell = (t, w, b) => new TableCell({ width: { size: w, type: WidthType.DXA },
     children: [new Paragraph({ children: [tx2(t, { bold: b, size: 18 })] })] });
-  let logo = null;
-  try { logo = await (await fetch("logo.png")).arrayBuffer(); } catch (e) { logo = null; }
   const secs = [];
   for (const r of rows) {
     const kids = [];
-    if (logo) kids.push(new Paragraph({ children: [new ImageRun({ type: "png",
-      data: logo, transformation: { width: 142, height: 46 } })] }));
     kids.push(
       new Paragraph({ children: [tx2("施工自主檢查表", { bold: true, size: 30 })],
         alignment: AlignmentType.CENTER }),
