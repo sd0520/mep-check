@@ -89,13 +89,6 @@ const CFG_KEY = "mepcheck.site";
 let CFG = { name: "", vendor: "", by: "" };
 try { Object.assign(CFG, JSON.parse(localStorage.getItem(CFG_KEY) || "{}")); } catch (e) {}
 function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); } catch (e) {} }
-function paintSite() {
-  $("hdSite").textContent = CFG.name || "尚未設定工地";
-  const v = $("hdVendor");
-  v.textContent = CFG.vendor ? "　" + CFG.vendor : "";
-  v.hidden = !CFG.vendor;
-}
-
 /* 橫幅上的今日資訊：年月日、星期、時間、問候語 */
 const WEEKDAY = ["日", "一", "二", "三", "四", "五", "六"];
 function greet(h) {
@@ -166,7 +159,7 @@ $("btnSite").onclick = () => {
 $("dlgSite").addEventListener("close", () => {
   if ($("dlgSite").returnValue !== "ok") return;
   CFG.name = $("sName").value.trim(); CFG.vendor = $("sVendor").value.trim();
-  CFG.by = $("sBy").value.trim(); saveCfg(); paintSite(); toast("工地設定已儲存");
+  CFG.by = $("sBy").value.trim(); saveCfg(); toast("工地設定已儲存");
 });
 
 /* ---------- 表單 ---------- */
@@ -689,7 +682,6 @@ $("exDocx").onclick = async () => {
 
 /* ---------- 啟動 ---------- */
 (async function boot() {
-  paintSite();
   paintClock();
   setInterval(paintClock, 20000);
   document.addEventListener("visibilitychange", () => { if (!document.hidden) paintClock(); });
