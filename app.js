@@ -175,6 +175,40 @@ function seg(el, arr, cur, cb) {
 const itemsFor = (sub) => (TEMPLATES[sub] || []).map(([stage, item, std]) =>
   ({ stage, item, std, result: "", actual: "", photos: [] }));
 
+/* ---------- 案場 ---------- */
+const CASES = [
+  { id: "tamsui", icon: "🏗", name: "淡水高生物案", note: "機電自主檢查・逐項拍照" },
+];
+let pendingCase = null;
+
+function renderCases() {
+  $("caseBox").innerHTML = CASES.map((c) =>
+    `<button class="case" data-case="${esc(c.id)}">
+       <span class="ic">${esc(c.icon)}</span>
+       <span class="tx"><b>${esc(c.name)}</b><span>${esc(c.note)}</span></span>
+       <span class="go">›</span>
+     </button>`).join("");
+  $("caseBox").querySelectorAll("[data-case]").forEach((b) => {
+    b.onclick = () => {
+      pendingCase = CASES.find((c) => c.id === b.dataset.case);
+      $("whoCase").textContent = pendingCase.name;
+      $("whoName").value = CFG.by || "";
+      $("dlgWho").showModal();
+    };
+  });
+}
+
+$("dlgWho").addEventListener("close", () => {
+  if ($("dlgWho").returnValue !== "ok" || !pendingCase) return;
+  const who = $("whoName").value.trim();
+  if (!who) { toast("請填檢查人員姓名"); return; }
+  CFG.by = who; saveCfg();
+  newDraft();
+  draft.caseName = pendingCase.name;
+  draft.inspector = who;
+  renderForm(); show("vForm");
+});
+
 function newDraft() {
   const s = Object.keys(TEMPLATES)[0];
   editingId = null;
@@ -247,7 +281,6 @@ $("fFloor").onchange = (e) => { draft.floor = e.target.value; };
 $("fLoc").oninput = (e) => { draft.location = e.target.value; };
 $("fBy").oninput = (e) => { draft.inspector = e.target.value; };
 $("fDate").onchange = (e) => { draft.date = e.target.value; $("formCode").textContent = roc(draft.date); };
-$("btnNew").onclick = () => { newDraft(); renderForm(); show("vForm"); };
 
 /* ---------- 照片 ---------- */
 function shrink(file) {
@@ -286,7 +319,9 @@ function pick(i) {
 
 /* ---------- 儲存 ---------- */
 $("btnSave").onclick = async () => {
-  if (!CFG.name) { toast("請先按右上「✎ 工地」設定工程名稱"); $("btnSite").click(); return; }
+  if (!CFG.name && !draft.caseName) {
+    toast("請先按右上「✎ 工地」設定工程名稱"); $("btnSite").click(); return;
+  }
   if (!draft.location.trim()) { toast("請填檢查位置"); $("fLoc").focus(); return; }
   if (!draft.inspector.trim()) { toast("請填檢查人"); $("fBy").focus(); return; }
   if (!draft.items.filter((i) => i.result).length) { toast("至少要標記一項檢查結果"); return; }
@@ -301,7 +336,8 @@ $("btnSave").onclick = async () => {
   const c = tally(draft);
   const rec = Object.assign({}, draft, {
     id: editingId || ("r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
-    code, site: CFG.name, vendor: CFG.vendor,
+    code, site: CFG.name || draft.caseName || "", vendor: CFG.vendor,
+    caseName: draft.caseName || "",
     result: c.fail > 0 ? "fail" : "pass",
     fixed: editingId ? (records.find((r) => r.id === editingId).fixed || false) : false,
     savedAt: Date.now()
@@ -321,7 +357,7 @@ function renderList() {
   const box = $("listBox");
   if (!records.length) {
     box.innerHTML = `<div class="empty"><div class="big">📋</div><div>尚未有查驗紀錄</div>
-      <div class="tiny" style="margin-top:.3rem">按上方「新增查驗」開始第一筆</div></div>`;
+      <div class="tiny" style="margin-top:.3rem">按上方的案場開始第一筆</div></div>`;
     return;
   }
   box.innerHTML = records.map((r) => {
@@ -362,7 +398,7 @@ $("btnPrint").onclick = async () => {
         <div>MEP SELF-INSPECTION CHECKLIST</div></div>
       <div class="n">${esc(draft.code || roc(draft.date))}</div></div>
     <table><tbody>
-      <tr><th style="width:18%">工程名稱</th><td colspan="3">${esc(draft.site || CFG.name)}</td></tr>
+      <tr><th style="width:18%">工程名稱</th><td colspan="3">${esc(draft.site || CFG.name || draft.caseName || "")}</td></tr>
       <tr><th>承攬廠商</th><td>${esc(draft.vendor || CFG.vendor)}</td>
           <th style="width:18%">分項工程</th><td>${esc(draft.subproject)}</td></tr>
       <tr><th>檢查位置</th><td>${esc(draft.zone)} ${esc(draft.floor)} ${esc(draft.location)}</td>
@@ -433,6 +469,55 @@ $("btnImport").onclick = () => {
 };
 
 /* ---------- 後台 ---------- */
+/* ---------- 管理者（後台開關） ----------
+   這是畫面上的鎖，不是資料的鎖：網站原始碼是公開的，密碼比對在瀏覽器裡做。
+   它擋的是同仁誤按後台，真正的防線是線上空間那組由伺服器驗證的通行碼。 */
+const ADMIN_KEY = "mepcheck.admin";
+let adminOn = false;
+
+async function sha256(t) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+  return Array.from(new Uint8Array(b)).map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+function adminHash() { try { return localStorage.getItem(ADMIN_KEY) || ""; } catch (e) { return ""; } }
+function paintAdminTab() {
+  $("tabAdmin").hidden = !adminOn;
+  if (!adminOn && !$("vAdmin").hidden) show("vList");
+}
+
+$("btnAdmin").onclick = () => {
+  const has = !!adminHash();
+  $("admTitle").textContent = has ? "管理者登入" : "設定管理者密碼";
+  $("admNote").textContent = has
+    ? "輸入密碼後才會出現「後台」分頁。"
+    : "這台裝置還沒設過。現在輸入的就是往後的管理者密碼，只存在這台裝置。";
+  $("admOk").textContent = has ? "登入" : "設定並登入";
+  $("admPass").value = "";
+  $("dlgAdmin").showModal();
+};
+$("dlgAdmin").addEventListener("close", async () => {
+  if ($("dlgAdmin").returnValue !== "ok") return;
+  const v = $("admPass").value;
+  $("admPass").value = "";
+  if (!v) { toast("請輸入密碼"); return; }
+  if (!window.crypto || !crypto.subtle) { toast("這個瀏覽器不支援密碼驗證，請用 https 開啟"); return; }
+  const h = await sha256(v);
+  const cur = adminHash();
+  if (!cur) {
+    try { localStorage.setItem(ADMIN_KEY, h); } catch (e) {}
+    adminOn = true; paintAdminTab(); renderAdmin(); show("vAdmin");
+    toast("管理者密碼已設定");
+    return;
+  }
+  if (h !== cur) { toast("密碼不正確"); return; }
+  adminOn = true; paintAdminTab(); renderAdmin(); show("vAdmin");
+  toast("已登入管理者");
+});
+$("btnAdminOut").onclick = () => {
+  adminOn = false; paintAdminTab(); show("vList"); renderList();
+  toast("已登出管理者");
+};
+
 /* ---------- 線上空間（管理者） ---------- */
 const CLOUD_KEY = "mepcheck.cloud";
 let CLOUD = null;
@@ -492,7 +577,7 @@ function paintCloud(note) {
     : "尚未上傳過。按「存入線上空間」把本機紀錄與照片送上去。");
 }
 
-$("btnAdmin").onclick = () => {
+$("btnCloudSetup").onclick = () => {
   $("cUrl").value = CLOUD ? CLOUD.url : "";
   $("cPass").value = CLOUD ? CLOUD.pass : "";
   $("dlgCloud").showModal();
@@ -510,8 +595,7 @@ $("dlgCloud").addEventListener("close", async () => {
   try {
     const out = await cloudCall({ action: "ping" }, 25000);
     CLOUD.lastAt = keep && keep.url === url ? keep.lastAt : 0;
-    saveCloud(); paintCloud();
-    show("vAdmin"); renderAdmin();
+    saveCloud(); paintCloud(); renderAdmin();
     toast("已登入　線上已有 " + (out.count || 0) + " 筆");
   } catch (e) {
     CLOUD = keep; saveCloud(); paintCloud();
@@ -692,8 +776,7 @@ $("exDocx").onclick = async () => {
     $("offTip").hidden = false;
     $("offTip").textContent = "這個瀏覽器不支援本機儲存，資料無法保存。請改用 Chrome 或 Safari。";
   }
-  newDraft(); renderList();
-  if (!CFG.name) setTimeout(() => $("btnSite").click(), 400);
+  newDraft(); renderCases(); renderList(); paintAdminTab();
   const showOff = () => { $("offTip").hidden = navigator.onLine; };
   window.addEventListener("online", showOff); window.addEventListener("offline", showOff); showOff();
   if ("serviceWorker" in navigator) {

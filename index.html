@@ -72,6 +72,15 @@ header h1{font-size:.98rem;font-weight:700;letter-spacing:.02em;white-space:nowr
   flex:0 0 auto;border-radius:1px}
 .foot{text-align:center;font-size:.74rem;color:var(--fg-dim);margin:1.4rem 0 .2rem;
   line-height:1.8}
+.case{display:flex;align-items:center;gap:.8rem;width:100%;text-align:left;color:inherit;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+  box-shadow:var(--shadow);padding:.85rem 1rem;cursor:pointer;margin-bottom:.6rem}
+.case .ic{width:2.6rem;height:2.6rem;border-radius:12px;background:var(--brand-soft);
+  display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex:0 0 auto}
+.case .tx{flex:1;min-width:0}
+.case .tx b{display:block;font-size:.98rem;font-weight:700;margin-bottom:.05rem}
+.case .tx span{font-size:.78rem;color:var(--fg-dim)}
+.case .go{color:var(--fg-dim);font-size:1.05rem;flex:0 0 auto}
 .spacer{flex:1 1 auto;min-width:0}
 .chipbtn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.14);
   color:#fff;border-radius:999px;
@@ -218,7 +227,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 
   <!-- 清單 -->
   <section id="vList">
-    <button class="btn primary block" id="btnNew" style="margin-bottom:1.1rem">＋ 新增查驗</button>
+    <div class="sect">今天要查哪個案場</div>
+    <div id="caseBox" style="margin-bottom:1.3rem"></div>
     <div class="sect">本機查驗紀錄</div>
     <div class="card pad" id="listBox"></div>
     <p class="foot">資料只存在這台手機・換手機前記得先按右上「💾 備份」</p>
@@ -285,6 +295,11 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
         <button class="btn" id="exZip">⬇ 照片打包</button>
         <button class="btn" id="exDocx">⬇ 自主檢查表 Word</button>
       </div>
+      <div class="row" style="margin-top:.6rem">
+        <button class="btn sm" id="btnCloudSetup">☁ 線上空間設定</button>
+        <div class="spacer"></div>
+        <button class="btn sm" id="btnAdminOut">🔓 管理者登出</button>
+      </div>
       <p class="tiny muted" style="margin:.6rem 0 0">
         同仁在現場按右上「💾 備份」匯出檔案（LINE 或 Email 傳回），這裡匯入後即可彙整。</p>
     </div>
@@ -302,11 +317,29 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 
 <nav class="tabbar">
   <button id="tabSite" aria-pressed="true"><span class="ic">📋</span>現場</button>
-  <button id="tabAdmin" aria-pressed="false"><span class="ic">🗂</span>後台</button>
+  <button id="tabAdmin" aria-pressed="false" hidden><span class="ic">🗂</span>後台</button>
 </nav>
 
+<dialog id="dlgWho"><form method="dialog" class="dlg">
+  <h3 style="margin-bottom:.2rem" id="whoCase">案場</h3>
+  <p class="tiny muted" style="margin:0 0 .8rem">填一次就好，之後會自動帶出。</p>
+  <label class="f"><span>檢查人員</span>
+    <input type="text" id="whoName" placeholder="姓名" autocomplete="name"></label>
+  <div class="row"><button class="btn primary" value="ok">開始查驗</button>
+    <button class="btn" value="cancel">取消</button></div>
+</form></dialog>
+
+<dialog id="dlgAdmin"><form method="dialog" class="dlg">
+  <h3 style="margin-bottom:.2rem" id="admTitle">管理者登入</h3>
+  <p class="tiny muted" style="margin:0 0 .8rem" id="admNote"></p>
+  <label class="f"><span>管理者密碼</span>
+    <input type="password" id="admPass" autocomplete="current-password"></label>
+  <div class="row"><button class="btn primary" value="ok" id="admOk">登入</button>
+    <button class="btn" value="cancel">取消</button></div>
+</form></dialog>
+
 <dialog id="dlgCloud"><form method="dialog" class="dlg">
-  <h3 style="margin-bottom:.6rem">管理者登入</h3>
+  <h3 style="margin-bottom:.6rem">線上空間設定</h3>
   <p class="tiny muted" style="margin:0 0 .8rem">
     通行碼由線上空間的伺服器驗證，不會存在這個網站的程式裡。
     網址與通行碼只留在這台裝置。</p>
