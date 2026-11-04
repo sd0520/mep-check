@@ -244,15 +244,60 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 
   <!-- 清單 -->
   <section id="vList">
-    <div class="sect">今天要清點哪個案場</div>
+    <div class="sect">今天要進哪個案場</div>
     <div id="caseBox" style="margin-bottom:1.3rem"></div>
-    <div class="sect">本機清點紀錄</div>
+    <div class="sect">本機紀錄</div>
     <div class="card pad" id="listBox"></div>
     <p class="foot">資料只存在這台手機・換手機前記得先按右上「💾 備份」</p>
     <div style="text-align:center"><button class="btn sm" id="btnAdmin">🔒 管理者登入</button></div>
   </section>
 
-  <!-- 清點 -->
+  <!-- 功能選單 -->
+  <section id="vMenu" hidden>
+    <div class="row" style="margin-bottom:.9rem">
+      <button class="btn sm" id="btnMenuBack">← 案場</button>
+      <div class="spacer"></div>
+      <span class="tiny muted" id="menuWho"></span>
+    </div>
+    <div class="sect" id="menuCase">案場</div>
+    <div id="menuBox"></div>
+  </section>
+
+  <!-- 自檢 -->
+  <section id="vCheck" hidden>
+    <div class="row" style="margin-bottom:.8rem">
+      <button class="btn sm" id="kBack">← 返回</button>
+      <div class="spacer"></div>
+      <span class="tiny mono" id="kCode"></span>
+      <button class="btn sm" id="kPrint">🖨 預覽／列印</button>
+      <button class="btn sm primary" id="kSave">儲存</button>
+    </div>
+    <div class="card pad" style="margin-bottom:1rem">
+      <label class="f"><span>分項工程</span><select id="kSub"></select></label>
+      <div class="grid2">
+        <label class="f"><span>區域</span><select id="kZone"></select></label>
+        <label class="f"><span>樓層</span><select id="kFloor"></select></label>
+      </div>
+      <label class="f"><span>檢查位置</span>
+        <input type="text" id="kLoc" placeholder="例：B1F 電氣室上方橋架"></label>
+      <div class="grid2">
+        <label class="f"><span>檢查日期</span><input type="date" id="kDate"></label>
+        <label class="f"><span>檢查人</span><input type="text" id="kBy" placeholder="姓名"></label>
+      </div>
+      <label class="f"><span>施工流程</span><div class="seg" id="kStage"></div></label>
+      <label class="f" style="margin-bottom:0"><span>抽查時機</span>
+        <div class="seg" id="kTiming"></div></label>
+    </div>
+    <div class="row tiny muted" style="margin-bottom:.4rem">
+      結果標記：<span style="color:var(--ok);font-weight:700">○ 合格</span>
+      <span style="color:var(--bad);font-weight:700">╳ 缺失</span>
+      <span style="color:var(--na)">／ 無此項</span>
+      <div class="spacer"></div><span id="kProgress"></span>
+    </div>
+    <div class="card pad" id="kItemBox"></div>
+  </section>
+
+  <!-- 清查 -->
   <section id="vForm" hidden>
     <div class="row" style="margin-bottom:.8rem">
       <button class="btn sm" id="btnBack">← 返回</button>
@@ -314,6 +359,8 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
         <button class="btn" id="btnImport">📥 匯入同仁備份</button>
         <button class="btn" id="exXlsx">⬇ 清點統計表</button>
         <button class="btn" id="exDetail">⬇ 清點明細</button>
+        <button class="btn" id="exCheck">⬇ 自檢總表</button>
+        <button class="btn" id="exFix">⬇ 缺失追蹤表</button>
         <button class="btn" id="exZip">⬇ 照片打包</button>
       </div>
       <div class="row" style="margin-top:.6rem">
@@ -336,6 +383,15 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
         <tbody id="tbody"></tbody></table></div>
       <div class="empty" id="tblEmpty"><div class="big">🗂</div><div>還沒有清點紀錄</div></div>
     </div>
+
+    <div class="sect" style="margin-top:1.4rem">自檢紀錄</div>
+    <div class="card">
+      <div class="tblwrap"><table>
+        <thead><tr><th>編號</th><th>日期</th><th>區域樓層</th><th>分項工程</th>
+          <th>位置</th><th>檢查人</th><th>合格</th><th>缺失</th><th>狀態</th></tr></thead>
+        <tbody id="ctbody"></tbody></table></div>
+      <div class="empty" id="ctblEmpty"><div class="big">📋</div><div>還沒有自檢紀錄</div></div>
+    </div>
   </section>
 </main>
 
@@ -353,7 +409,7 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     <input type="password" id="whoPass" autocomplete="off"></label>
   <label class="f"><span>清點人員</span>
     <input type="text" id="whoName" placeholder="姓名" autocomplete="name"></label>
-  <div class="row"><button class="btn primary" value="ok">開始清點</button>
+  <div class="row"><button class="btn primary" value="ok">進入案場</button>
     <button class="btn" value="cancel">取消</button></div>
 </form></dialog>
 

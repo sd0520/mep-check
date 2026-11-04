@@ -99,10 +99,10 @@ function urlFor(id) {
 }
 
 /* ---------- 畫面切換 ---------- */
-const views = ["vList", "vForm", "vAdmin"];
+const views = ["vList", "vMenu", "vCheck", "vForm", "vAdmin"];
 function show(v) {
   views.forEach((x) => { $(x).hidden = x !== v; });
-  $("hero").hidden = v === "vForm";
+  $("hero").hidden = v === "vForm" || v === "vCheck";
   $("tabSite").setAttribute("aria-pressed", String(v !== "vAdmin"));
   $("tabAdmin").setAttribute("aria-pressed", String(v === "vAdmin"));
   window.scrollTo(0, 0);
@@ -182,10 +182,287 @@ $("dlgWho").addEventListener("close", async () => {
     }
   }
   CFG.by = who; saveCfg();
-  newDraft(who);
+  activeCase = CASES.find((c) => c.代號 === pendingCase.案場代號) || null;
+  renderMenu();
+  show("vMenu");
+});
+
+/* ---------- 功能選單 ---------- */
+let activeCase = null;
+const FUNCS = {
+  "自檢": { icon: "📋", note: "逐項目視檢查、填實際情形、拍照", go: startCheck },
+  "清查": { icon: "📊", note: "清點數量、比對標單、算完成率", go: startTally },
+};
+function renderMenu() {
+  const c = activeCase;
+  $("menuCase").textContent = c ? c.名稱 : "案場";
+  $("menuWho").textContent = CFG.by ? CFG.by : "";
+  const list = (c && c.功能 && c.功能.length) ? c.功能 : ["清查"];
+  $("menuBox").innerHTML = list.map((f) => {
+    const d = FUNCS[f];
+    if (!d) return "";
+    return `<button class="case" data-f="${esc(f)}">
+      <span class="ic">${d.icon}</span>
+      <span class="tx"><b>${esc(f)}</b><span>${esc(d.note)}</span></span>
+      <span class="go">›</span></button>`;
+  }).join("");
+  $("menuBox").querySelectorAll("[data-f]").forEach((b) => {
+    b.onclick = () => FUNCS[b.dataset.f].go();
+  });
+}
+$("btnMenuBack").onclick = () => { show("vList"); renderList(); };
+
+async function startTally() {
+  if (!base.length) { toast("這個案場還沒有標單基準，請管理者匯入設定檔"); return; }
+  newDraft(CFG.by);
   await renderForm();
   show("vForm");
-});
+}
+function startCheck() {
+  newCheck(CFG.by);
+  renderCheck();
+  show("vCheck");
+}
+
+/* ---------- 自檢 ----------
+   工項範本沿用本案既有的自主檢查表。現場可按「修改標準」臨時調整；
+   要永久增修，改下面的 TEMPLATES。 */
+const TEMPLATES = {
+  "電氣配管工程": [
+    ["施工前", "管路廠牌", "億豐"],
+    ["施工前", "管路規格", "PVC-E管"],
+    ["施工中", "放樣", "依施工圖"],
+    ["施工中", "管路配設位置", "管路配設於雙層鋼筋中間"],
+    ["施工中", "埋設間距", "管路並排至少應有最大管徑2D間隔"],
+    ["施工中", "管路接頭", "確實插入深度足夠"],
+    ["施工中", "管路接頭、彎頭之固定", "綁紮固定"],
+    ["施工後", "管路出口保護", "管路出口以管口塞或膠布防護"],
+    ["施工後", "清潔", "剩餘材料及雜物清除"]],
+  "弱電配管工程": [
+    ["施工前", "管路廠牌", "億豐"],
+    ["施工前", "管路規格、尺寸", "PVC-E管"],
+    ["施工中", "放樣", "依施工圖"],
+    ["施工中", "管路配設位置", "管路配設於雙層鋼筋中間"],
+    ["施工中", "埋設間距", "管路並排至少應有最大管徑2D間隔"],
+    ["施工中", "管路接頭", "確實插入深度足夠"],
+    ["施工中", "管路接頭、彎頭之固定", "綁紮固定"],
+    ["施工後", "管路出口保護", "管路出口以管口塞或膠布防護"],
+    ["施工後", "清潔", "剩餘材料及雜物清除"]],
+  "給排水配管工程": [
+    ["施工前", "管路廠牌", "億豐"],
+    ["施工前", "管路規格", "PVC-B管"],
+    ["施工中", "放樣", "依施工圖"],
+    ["施工中", "管路配設位置", "管路配設於雙層鋼筋中間"],
+    ["施工中", "埋設間距", "管路並排至少應有最大管徑2D間隔"],
+    ["施工中", "管路接頭", "確實插入深度足夠"],
+    ["施工中", "管路接頭、彎頭之固定", "綁紮固定"],
+    ["施工後", "管路出口保護", "管路出口以管口塞或膠布防護"],
+    ["施工後", "清潔", "剩餘材料及雜物清除"]],
+  "避雷及接地設備工程（SUS304雙連出線盒）": [
+    ["施工前", "廠牌", "凰榮(SUS304雙連出線盒)、億豐(管材)、伸泰(線材)"],
+    ["施工前", "規格、尺寸", "SUS304雙連出線盒 205×128×63mm 厚0.6mm"],
+    ["施工中", "管路配設", "依施工圖"],
+    ["施工中", "外觀", "無破損、劣化"],
+    ["施工中", "管路接頭、彎頭之固定", "綁紮固定"],
+    ["施工中", "彎頭", "二出線口間彎頭不超過4個"],
+    ["施工中", "直管", "二出線口間距離不得超過50M"],
+    ["施工後", "接地線保護", "線頭應用膠布包覆保護"],
+    ["施工後", "清潔", "剩餘材料及雜物清除"]],
+  "接地工程": [
+    ["施工前", "開挖面檢視", "開挖面之積水或地下水應予控制並清除"],
+    ["施工前", "施作位置", "與地下管線及基礎不相衝突之處或未來不致開挖之場所"],
+    ["施工中", "放樣", "依核准之施工圖"],
+    ["施工中", "接地銅棒", "頂部埋設深度應在地面下至少1.0m 或地下水位以下；接地極間隔應在2m以上"],
+    ["施工中", "接地銅網", "導線標稱截面積30mm²以上，並以熱熔接方法接續"],
+    ["施工中", "接地導線", "標稱截面積須大於5.5mm²"],
+    ["施工中", "接地引上線", "通過混凝土或地板者，須設套管及止水板"],
+    ["施工中", "電阻值測試", "須在10Ω以下"],
+    ["施工後", "接地箱安裝", "箱底離地30CM"],
+    ["施工後", "接地電阻", "接地電阻應在10Ω以下"],
+    ["施工後", "避雷針位置", "依設計圖"],
+    ["施工後", "避雷針高度", "尖端至少須高出其保護區域3M以上"]]
+};
+
+const ZONES = ["A區", "B區", "C區", "全區"];
+const FLOORS = ["筏基層", "B1F", "1F", "2F", "3F", "4F", "R1F", "RF", "全區"];
+const STAGES = ["施工前", "施工中", "施工後"];
+const TIMINGS = ["檢驗停留點", "不定期抽查"];
+const RES = [["pass", "○ 合格"], ["fail", "╳ 缺失"], ["na", "／ 無此項"]];
+const MARK = { pass: "○ 合格", fail: "╳ 缺失", na: "／ 無此項", "": "" };
+const ctally = (r) => { const c = { pass: 0, fail: 0, na: 0 };
+  (r.items || []).forEach((i) => { if (c[i.result] !== undefined) c[i.result]++; }); return c; };
+const itemsFor = (sub) => (TEMPLATES[sub] || []).map(([stage, item, std]) =>
+  ({ stage, item, std, result: "", actual: "", photos: [] }));
+
+let check = null, editingCheck = null;
+
+function seg(el, arr, cur, cb) {
+  el.innerHTML = arr.map((v) =>
+    '<button type="button" aria-pressed="' + (v === cur) + '">' + esc(v) + "</button>").join("");
+  el.querySelectorAll("button").forEach((b, i) => { b.onclick = () => {
+    el.querySelectorAll("button").forEach((x, j) => x.setAttribute("aria-pressed", String(i === j)));
+    cb(arr[i]); }; });
+}
+
+function newCheck(who) {
+  const s = Object.keys(TEMPLATES)[0];
+  editingCheck = null;
+  check = { subproject: s, zone: "B區", floor: "B1F", location: "", date: todayISO(),
+    stage: "施工中", timing: "不定期抽查", inspector: who || CFG.by || "", items: itemsFor(s) };
+}
+
+function renderCheck() {
+  fill($("kSub"), Object.keys(TEMPLATES), check.subproject);
+  fill($("kZone"), ZONES, check.zone);
+  fill($("kFloor"), FLOORS, check.floor);
+  $("kLoc").value = check.location; $("kDate").value = check.date; $("kBy").value = check.inspector;
+  seg($("kStage"), STAGES, check.stage, (v) => { check.stage = v; });
+  seg($("kTiming"), TIMINGS, check.timing, (v) => { check.timing = v; });
+  $("kCode").textContent = check.code || roc(check.date);
+  renderCheckItems();
+}
+
+async function renderCheckItems() {
+  const parts = [];
+  for (let i = 0; i < check.items.length; i++) {
+    const it = check.items[i];
+    const shots = [];
+    for (let pi = 0; pi < it.photos.length; pi++) {
+      shots.push('<div class="shot"><img src="' + esc(await urlFor(it.photos[pi])) + '" alt="">' +
+        '<button type="button" data-del="' + pi + '" aria-label="刪除照片">×</button></div>');
+    }
+    parts.push('<div class="item" data-i="' + i + '">' +
+      '<h4><span class="chip">' + esc(it.stage) + "</span>" + (i + 1) + ". " + esc(it.item) + "</h4>" +
+      '<div class="std">規定標準：<span class="stdtext">' + esc(it.std) + "</span>" +
+        '<button type="button" class="edit" data-edit>修改標準</button></div>' +
+      '<div class="res">' + RES.map(([k, l]) =>
+        '<button type="button" data-r="' + k + '" aria-pressed="' + (it.result === k) + '">' +
+        esc(l) + "</button>").join("") + "</div>" +
+      '<input type="text" class="actual" placeholder="實際檢查情形（可空白）" value="' +
+        esc(it.actual) + '">' +
+      '<div class="shots">' + shots.join("") +
+        '<button type="button" class="addshot" data-add><span style="font-size:1.3rem">＋</span>照片</button>' +
+      "</div></div>");
+  }
+  $("kItemBox").innerHTML = parts.join("");
+  $("kItemBox").querySelectorAll(".item").forEach((box) => {
+    const i = +box.dataset.i, it = check.items[i];
+    box.querySelectorAll(".res button").forEach((b) => { b.onclick = () => {
+      it.result = it.result === b.dataset.r ? "" : b.dataset.r;
+      box.querySelectorAll(".res button").forEach((x) =>
+        x.setAttribute("aria-pressed", String(x.dataset.r === it.result)));
+      paintCheckProgress(); }; });
+    box.querySelector(".actual").oninput = (e) => { it.actual = e.target.value; };
+    box.querySelector("[data-add]").onclick = () => pickCheck(i);
+    box.querySelector("[data-edit]").onclick = () => {
+      const cur = it.std;
+      const span = box.querySelector(".stdtext");
+      const inp = document.createElement("input");
+      inp.type = "text"; inp.value = cur; inp.style.marginTop = ".25rem";
+      span.replaceWith(inp); inp.focus();
+      inp.onblur = () => { it.std = inp.value.trim() || cur;
+        const s2 = document.createElement("span"); s2.className = "stdtext"; s2.textContent = it.std;
+        inp.replaceWith(s2); };
+    };
+    box.querySelectorAll("[data-del]").forEach((b) => { b.onclick = async () => {
+      it.photos.splice(+b.dataset.del, 1); await renderCheckItems(); }; });
+  });
+  paintCheckProgress();
+}
+
+function paintCheckProgress() {
+  const n = check.items.filter((i) => i.result).length;
+  $("kProgress").textContent = "已標記 " + n + "/" + check.items.length + " 項";
+}
+
+function pickCheck(i) {
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = "image/*"; inp.capture = "environment"; inp.multiple = true;
+  inp.onchange = async () => {
+    const fs = Array.from(inp.files || []); if (!fs.length) return;
+    toast("處理照片中…");
+    for (const f of fs) {
+      const id = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+      await dbPut("photos", { id, blob: await shrink(f) });
+      check.items[i].photos.push(id);
+    }
+    await renderCheckItems(); toast("已加入照片");
+  };
+  inp.click();
+}
+
+$("kSub").onchange = (e) => { check.subproject = e.target.value;
+  check.items = itemsFor(check.subproject); renderCheckItems(); };
+$("kZone").onchange = (e) => { check.zone = e.target.value; };
+$("kFloor").onchange = (e) => { check.floor = e.target.value; };
+$("kLoc").oninput = (e) => { check.location = e.target.value; };
+$("kBy").oninput = (e) => { check.inspector = e.target.value; };
+$("kDate").onchange = (e) => { check.date = e.target.value;
+  if (!editingCheck) $("kCode").textContent = roc(check.date); };
+$("kBack").onclick = () => { renderMenu(); show("vMenu"); };
+
+$("kSave").onclick = async () => {
+  if (!check.location.trim()) { toast("請填檢查位置"); $("kLoc").focus(); return; }
+  if (!check.inspector.trim()) { toast("請填檢查人"); $("kBy").focus(); return; }
+  if (!check.items.filter((i) => i.result).length) { toast("至少要標記一項檢查結果"); return; }
+  const day = roc(check.date);
+  let code = check.code;
+  if (!editingCheck) {
+    const n = records.filter((r) => String(r.code || "").startsWith(day)).length + 1;
+    code = day + "-" + pad(n, 2);
+  }
+  const c = ctally(check);
+  const rec = Object.assign({}, check, {
+    id: editingCheck || ("r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
+    kind: "check", code,
+    caseName: (activeCase && activeCase.名稱) || (PACK && PACK.案場) || "",
+    caseId: (activeCase && activeCase.代號) || "",
+    result: c.fail > 0 ? "fail" : "pass",
+    savedAt: Date.now(), cloudAt: 0,
+  });
+  await dbPut("records", rec);
+  records = await dbAll("records");
+  toast("已儲存 " + code);
+  show("vList"); renderList();
+};
+
+$("kPrint").onclick = async () => {
+  const c = ctally(check);
+  const rows = check.items.map((it, i) =>
+    '<tr><td style="text-align:center">' + (i + 1) + "</td><td>" + esc(it.stage) +
+    "</td><td>" + esc(it.item) + "</td><td>" + esc(it.std) + "</td><td>" +
+    esc(it.actual || "") + '</td><td style="text-align:center">' +
+    esc(MARK[it.result] || "") + "</td></tr>").join("");
+  const shots = [];
+  for (const it of check.items) for (const pid of it.photos) {
+    shots.push('<div class="ph"><img src="' + esc(await urlFor(pid)) + '" alt="">' +
+      '<div style="font-size:8pt">' + esc(it.item) + "　" + esc(it.actual || "") + "</div></div>");
+  }
+  $("printArea").innerHTML =
+    '<div class="phd"><div class="t"><b>施 工 自 主 檢 查 表</b>' +
+    "<div>SELF-INSPECTION CHECKLIST</div></div>" +
+    '<div class="n">' + esc(check.code || roc(check.date)) + "</div></div>" +
+    "<table><tbody>" +
+    '<tr><th style="width:18%">案場</th><td colspan="3">' +
+      esc((activeCase && activeCase.名稱) || "") + "</td></tr>" +
+    "<tr><th>分項工程</th><td>" + esc(check.subproject) +
+      '</td><th style="width:18%">檢查日期</th><td>民國 ' + esc(roc(check.date)) + "</td></tr>" +
+    "<tr><th>檢查位置</th><td>" + esc(check.zone) + " " + esc(check.floor) + " " +
+      esc(check.location) + "</td><th>檢查人</th><td>" + esc(check.inspector) + "</td></tr>" +
+    "<tr><th>施工流程</th><td>" + esc(check.stage) + "</td><th>抽查時機</th><td>" +
+      esc(check.timing) + "</td></tr>" +
+    '<tr><th>檢查結果</th><td colspan="3">合格 ' + c.pass + "　缺失 " + c.fail +
+      "　無此項 " + c.na + "</td></tr>" +
+    "</tbody></table>" +
+    '<p style="margin:6pt 0 3pt">結果標記：○ 檢查合格　╳ 有缺失需改正　／ 無此檢查項目</p>' +
+    "<table><thead><tr><th>項次</th><th>施工流程</th><th>管理項目</th>" +
+    "<th>規定標準</th><th>實際檢查情形</th><th>檢查結果</th></tr></thead><tbody>" +
+    rows + "</tbody></table>" +
+    '<table style="margin-top:8pt"><tbody><tr><th style="width:25%">檢查人簽名</th>' +
+    '<td style="height:46pt"></td><th style="width:25%">複核</th><td></td></tr></tbody></table>' +
+    (shots.length ? '<h3 style="margin-top:10pt">自檢照片</h3>' + shots.join("") : "");
+  window.print();
+};
 
 /* ---------- 基準 ---------- */
 const bKey = (b, f, c) => b + "|" + f + "|" + c;
@@ -386,37 +663,62 @@ $("btnSave").onclick = async () => {
 
 /* ---------- 清單 ---------- */
 function sortRecs() { records.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)); }
+/* 舊紀錄沒有 kind 欄位：有 lines 的是清查，有 items 的是自檢 */
+const kindOf = (r) => r.kind || (r.lines ? "tally" : "check");
 
 function renderList() {
   sortRecs();
   const box = $("listBox");
   if (!records.length) {
-    box.innerHTML = `<div class="empty"><div class="big">📋</div><div>尚未有清點紀錄</div>
-      <div class="tiny" style="margin-top:.3rem">按上方的案場開始第一筆</div></div>`;
+    box.innerHTML = '<div class="empty"><div class="big">📋</div><div>尚未有紀錄</div>' +
+      '<div class="tiny" style="margin-top:.3rem">按上方的案場開始第一筆</div></div>';
     return;
   }
   box.innerHTML = records.map((r) => {
-    const over = (r.lines || []).some((l) => num(l.got) > num(l.q));
-    const pill = over ? '<span class="pill bad">有超量</span>'
-      : `<span class="pill ok">${(r.lines || []).length} 項</span>`;
-    return `<div class="rec" data-id="${esc(r.id)}"><div style="min-width:0;flex:1">
-      <div style="font-weight:700">${esc(r.bldg)} ${esc(r.floor)}・${esc(r.sys)}</div>
-      <div class="tiny muted">${esc(r.note || "")}</div>
-      <div class="tiny mono muted">${esc(r.code)}　${esc(r.date)}　${esc(r.by)}
-        ${(r.photos || []).length ? "　📷" + r.photos.length : ""}</div>
-      </div><div>${pill}</div></div>`;
+    const k = kindOf(r);
+    let title, sub, pill, nph;
+    if (k === "tally") {
+      title = esc(r.bldg) + " " + esc(r.floor) + "・" + esc(r.sys);
+      sub = esc(r.note || "");
+      const over = (r.lines || []).some((l) => num(l.got) > num(l.q));
+      pill = over ? '<span class="pill bad">有超量</span>'
+                  : '<span class="pill ok">' + (r.lines || []).length + " 項</span>";
+      nph = (r.photos || []).length;
+    } else {
+      const c = ctally(r);
+      title = esc(r.subproject || "自檢");
+      sub = esc(r.zone || "") + " " + esc(r.floor || "") + "・" + esc(r.location || "");
+      pill = c.fail ? '<span class="pill bad">缺失 ' + c.fail + "</span>"
+                    : '<span class="pill ok">合格</span>';
+      nph = (r.items || []).reduce((n, i) => n + (i.photos || []).length, 0);
+    }
+    return '<div class="rec" data-id="' + esc(r.id) + '"><div style="min-width:0;flex:1">' +
+      '<div style="font-weight:700"><span class="chip">' + (k === "tally" ? "清查" : "自檢") +
+        "</span>" + title + "</div>" +
+      '<div class="tiny muted">' + sub + "</div>" +
+      '<div class="tiny mono muted">' + esc(r.code) + "　" + esc(r.date) + "　" +
+        esc(r.by || r.inspector || "") + (nph ? "　📷" + nph : "") + "</div>" +
+      "</div><div>" + pill + "</div></div>";
   }).join("");
   box.querySelectorAll(".rec").forEach((el) => { el.onclick = () => editRecord(el.dataset.id); });
 }
 
 async function editRecord(id) {
   const r = records.find((x) => x.id === id); if (!r) return;
-  editingId = id;
-  draft = { code: r.code, bldg: r.bldg, floor: r.floor, sys: r.sys, date: r.date,
-    by: r.by, note: r.note || "", got: {}, photos: (r.photos || []).slice() };
-  for (const l of r.lines || []) draft.got[l.c] = String(l.got);
-  await renderForm();
-  show("vForm");
+  activeCase = CASES.find((c) => c.代號 === r.caseId) || activeCase;
+  if (kindOf(r) === "tally") {
+    editingId = id;
+    draft = { code: r.code, bldg: r.bldg, floor: r.floor, sys: r.sys, date: r.date,
+      by: r.by, note: r.note || "", got: {}, photos: (r.photos || []).slice() };
+    for (const l of r.lines || []) draft.got[l.c] = String(l.got);
+    await renderForm();
+    show("vForm");
+  } else {
+    editingCheck = id;
+    check = JSON.parse(JSON.stringify(r));
+    renderCheck();
+    show("vCheck");
+  }
 }
 
 /* ---------- 列印：清點統計表 ---------- */
@@ -483,7 +785,10 @@ $("btnBackup").onclick = async () => {
   const pf = zip.folder("photos");
   const photos = await dbAll("photos");
   const used = new Set();
-  records.forEach((r) => (r.photos || []).forEach((p) => used.add(p)));
+  records.forEach((r) => {
+    (r.photos || []).forEach((p) => used.add(p));
+    (r.items || []).forEach((i) => (i.photos || []).forEach((p) => used.add(p)));
+  });
   photos.forEach((p) => { if (used.has(p.id)) pf.file(p.id + ".jpg", p.blob); });
   saveFile("清點備份_" + (CFG.by || "現場") + "_" + todayISO() + ".zip",
     await zip.generateAsync({ type: "blob" }));
@@ -718,12 +1023,17 @@ function renderAdmin() {
   const counted = base.filter((r) => (acc.get(bKey(r.b, r.f, r.c)) || 0) > 0).length;
   const over = base.filter((r) => (acc.get(bKey(r.b, r.f, r.c)) || 0) > r.q).length;
   const pct = base.length ? Math.round(counted / base.length * 1000) / 10 : 0;
+  const tallyRecs = records.filter((r) => kindOf(r) === "tally");
+  const checkRecs = records.filter((r) => kindOf(r) === "check");
+  const failItems = checkRecs.reduce((n, r) => n + ctally(r).fail, 0);
   $("stats").innerHTML =
-    `<div class="stat"><b>${records.length}</b><span>清點筆數</span></div>
+    `<div class="stat"><b>${tallyRecs.length}</b><span>清查筆數</span></div>
      <div class="stat"><b>${base.length}</b><span>標單項數</span></div>
      <div class="stat ok"><b>${counted}</b><span>已清點項數</span></div>
      <div class="stat${over ? " bad" : ""}"><b>${over}</b><span>超出標單項數</span></div>
-     <div class="stat"><b>${pct}%</b><span>完成率</span></div>`;
+     <div class="stat"><b>${pct}%</b><span>完成率</span></div>
+     <div class="stat"><b>${checkRecs.length}</b><span>自檢筆數</span></div>
+     <div class="stat${failItems ? " bad" : ""}"><b>${failItems}</b><span>自檢缺失項次</span></div>`;
 
   $("cfgInfo").textContent = PACK
     ? `案場設定檔：${PACK.案場}　${PACK.項目數} 項　產生於 ${PACK.產生日期 || "—"}`
@@ -737,6 +1047,18 @@ function renderAdmin() {
       <td class="num">${o.total}</td><td class="num">${o.done}</td>
       <td class="num">${p}%</td></tr>`;
   }).join("");
+
+  $("ctblEmpty").hidden = checkRecs.length > 0;
+  $("ctbody").innerHTML = checkRecs.map((r) => {
+    const c = ctally(r);
+    const st = c.fail ? '<span class="pill bad">有缺失</span>'
+                      : '<span class="pill ok">合格</span>';
+    return `<tr><td class="num">${esc(r.code)}</td><td class="num">${esc(r.date)}</td>
+      <td>${esc(r.zone || "")} ${esc(r.floor || "")}</td><td>${esc(r.subproject || "")}</td>
+      <td>${esc(r.location || "")}</td><td>${esc(r.inspector || "")}</td>
+      <td class="num">${c.pass}</td><td class="num">${c.fail}</td><td>${st}</td></tr>`;
+  }).join("");
+
   paintCloud();
 }
 
@@ -772,18 +1094,59 @@ $("exDetail").onclick = () => {
   saveFile("清點明細_" + todayISO() + ".xlsx", book("清點明細", [head].concat(rows)));
   toast("清點明細已下載");
 };
+$("exCheck").onclick = () => {
+  const rs = records.filter((r) => kindOf(r) === "check");
+  if (!rs.length) { toast("沒有自檢紀錄"); return; }
+  const head = ["編號", "檢查日期", "民國", "案場", "區域", "樓層", "檢查位置",
+    "分項工程", "施工流程", "抽查時機", "檢查人", "合格", "缺失", "無此項", "結果", "照片數"];
+  const rows = rs.map((r) => {
+    const c = ctally(r);
+    return [r.code, r.date, roc(r.date), r.caseName || "", r.zone || "", r.floor || "",
+      r.location || "", r.subproject || "", r.stage || "", r.timing || "", r.inspector || "",
+      c.pass, c.fail, c.na, c.fail ? "有缺失" : "全部合格",
+      (r.items || []).reduce((n, i) => n + (i.photos || []).length, 0)];
+  });
+  saveFile("自檢總表_" + todayISO() + ".xlsx", book("自檢總表", [head].concat(rows)));
+  toast("自檢總表已下載");
+};
+$("exFix").onclick = () => {
+  const head = ["編號", "檢查日期", "區域樓層", "檢查位置", "分項工程", "施工流程",
+    "管理項目", "規定標準", "實際檢查情形", "檢查人", "照片數"];
+  const rows = [];
+  for (const r of records) {
+    if (kindOf(r) !== "check") continue;
+    for (const it of (r.items || [])) {
+      if (it.result !== "fail") continue;
+      rows.push([r.code, r.date, (r.zone || "") + " " + (r.floor || ""), r.location || "",
+        r.subproject || "", it.stage || "", it.item || "", it.std || "", it.actual || "",
+        r.inspector || "", (it.photos || []).length]);
+    }
+  }
+  if (!rows.length) { toast("沒有缺失項目"); return; }
+  saveFile("缺失追蹤表_" + todayISO() + ".xlsx", book("缺失追蹤", [head].concat(rows)));
+  toast("缺失追蹤表已下載");
+};
 $("exZip").onclick = async () => {
   if (!records.length) { toast("沒有資料"); return; }
   toast("照片打包中…");
   const zip = new JSZip();
   let total = 0;
   for (const r of records) {
-    const dir = zip.folder(safe(r.code + "_" + r.bldg + r.floor + "-" + r.sys));
+    const isT = kindOf(r) === "tally";
+    const name = isT ? (r.code + "_" + r.bldg + r.floor + "-" + r.sys)
+                     : (r.code + "_" + (r.zone || "") + (r.floor || "") + "-" + (r.subproject || ""));
+    const dir = zip.folder(safe(name));
     let k = 0;
-    for (const pid of (r.photos || [])) {
-      const p = await dbGet("photos", pid); if (!p) continue;
-      k++; total++;
-      dir.file(pad(k, 2) + ".jpg", p.blob);
+    if (isT) {
+      for (const pid of (r.photos || [])) {
+        const p = await dbGet("photos", pid); if (!p) continue;
+        k++; total++; dir.file(pad(k, 2) + ".jpg", p.blob);
+      }
+    } else {
+      for (const it of (r.items || [])) for (const pid of (it.photos || [])) {
+        const p = await dbGet("photos", pid); if (!p) continue;
+        k++; total++; dir.file(pad(k, 2) + "_" + safe(it.item) + ".jpg", p.blob);
+      }
     }
   }
   if (!total) { toast("這些清點沒有照片"); return; }
