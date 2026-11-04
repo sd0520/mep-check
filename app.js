@@ -1,95 +1,49 @@
-"use strict";
-/* 機電施工查驗 — 離線版
-   資料存在瀏覽器 IndexedDB（含照片），不上傳任何伺服器。 */
-
-/* ---------- 檢查表範本：取自本案 13.施工查驗 既有自主檢查表 ---------- */
-const TEMPLATES = {
-  "電氣配管工程": [
-    ["施工前", "管路廠牌", "億豐"],
-    ["施工前", "管路規格", "PVC-E管"],
-    ["施工中", "放樣", "依施工圖"],
-    ["施工中", "管路配設位置", "管路配設於雙層鋼筋中間"],
-    ["施工中", "埋設間距", "管路並排至少應有最大管徑2D間隔"],
-    ["施工中", "管路接頭", "確實插入深度足夠"],
-    ["施工中", "管路接頭、彎頭之固定", "綁紮固定"],
-    ["施工後", "管路出口保護", "管路出口以管口塞或膠布防護"],
-    ["施工後", "清潔", "剩餘材料及雜物清除"]],
-  "弱電配管工程": [
-    ["施工前", "管路廠牌", "億豐"],
-    ["施工前", "管路規格、尺寸", "PVC-E管"],
-    ["施工中", "放樣", "依施工圖"],
-    ["施工中", "管路配設位置", "管路配設於雙層鋼筋中間"],
-    ["施工中", "埋設間距", "管路並排至少應有最大管徑2D間隔"],
-    ["施工中", "管路接頭", "確實插入深度足夠"],
-    ["施工中", "管路接頭、彎頭之固定", "綁紮固定"],
-    ["施工後", "管路出口保護", "管路出口以管口塞或膠布防護"],
-    ["施工後", "清潔", "剩餘材料及雜物清除"]],
-  "給排水配管工程": [
-    ["施工前", "管路廠牌", "億豐"],
-    ["施工前", "管路規格", "PVC-B管"],
-    ["施工中", "放樣", "依施工圖"],
-    ["施工中", "管路配設位置", "管路配設於雙層鋼筋中間"],
-    ["施工中", "埋設間距", "管路並排至少應有最大管徑2D間隔"],
-    ["施工中", "管路接頭", "確實插入深度足夠"],
-    ["施工中", "管路接頭、彎頭之固定", "綁紮固定"],
-    ["施工後", "管路出口保護", "管路出口以管口塞或膠布防護"],
-    ["施工後", "清潔", "剩餘材料及雜物清除"]],
-  "避雷及接地設備工程（SUS304雙連出線盒）": [
-    ["施工前", "廠牌", "凰榮(SUS304雙連出線盒)、億豐(管材)、伸泰(線材)"],
-    ["施工前", "規格、尺寸", "SUS304雙連出線盒 205×128×63mm 厚0.6mm"],
-    ["施工中", "管路配設", "依施工圖"],
-    ["施工中", "外觀", "無破損、劣化"],
-    ["施工中", "管路接頭、彎頭之固定", "綁紮固定"],
-    ["施工中", "彎頭", "二出線口間彎頭不超過4個"],
-    ["施工中", "直管", "二出線口間距離不得超過50M"],
-    ["施工後", "接地線保護", "線頭應用膠布包覆保護"],
-    ["施工後", "清潔", "剩餘材料及雜物清除"]],
-  "接地工程": [
-    ["施工前", "開挖面檢視", "開挖面之積水或地下水應予控制並清除"],
-    ["施工前", "施作位置", "與地下管線及基礎不相衝突之處或未來不致開挖之場所"],
-    ["施工中", "放樣", "依核准之施工圖"],
-    ["施工中", "接地銅棒", "頂部埋設深度應在地面下至少1.0m 或地下水位以下；接地極間隔應在2m以上"],
-    ["施工中", "接地銅網", "導線標稱截面積30mm²以上，並以熱熔接方法接續"],
-    ["施工中", "接地導線", "標稱截面積須大於5.5mm²"],
-    ["施工中", "接地引上線", "通過混凝土或地板者，須設套管及止水板"],
-    ["施工中", "電阻值測試", "須在10Ω以下"],
-    ["施工後", "接地箱安裝", "箱底離地30CM"],
-    ["施工後", "接地電阻", "接地電阻應在10Ω以下"],
-    ["施工後", "避雷針位置", "依設計圖"],
-    ["施工後", "避雷針高度", "尖端至少須高出其保護區域3M以上"]]
-};
-const ZONES = ["A區", "B區", "C區", "全區"];
-const FLOORS = ["筏基層", "B1F", "1F", "2F", "3F", "4F", "R1F", "RF", "全區"];
-const STAGES = ["施工前", "施工中", "施工後"];
-const TIMINGS = ["檢驗停留點", "不定期抽查"];
-const RES = [["pass", "○ 合格"], ["fail", "╳ 缺失"], ["na", "／ 無此項"]];
-const MARK = { pass: "○ 合格", fail: "╳ 缺失", na: "／ 無此項", "": "" };
+/* 職人百寶箱 — 現場清點
+   資料只存在這台裝置：IndexedDB（紀錄、照片、基準）＋ localStorage（案場設定、清點人）。
+   標單基準與密碼都由「案場設定檔」帶入，不寫在這個公開的網站程式裡。 */
 
 /* ---------- 小工具 ---------- */
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"]/g,
-  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 const pad = (n, w) => String(n).padStart(w, "0");
 const todayISO = () => { const d = new Date();
   return d.getFullYear() + "-" + pad(d.getMonth() + 1, 2) + "-" + pad(d.getDate(), 2); };
-const roc = (iso) => { const p = String(iso).split("-");
+const roc = (iso) => { const p = String(iso).split("-"); if (p.length !== 3) return "";
   return String(+p[0] - 1911) + pad(p[1], 2) + pad(p[2], 2); };
 const safe = (s) => String(s).replace(/[\\/:*?"<>|\s]/g, "");
+const num = (v) => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+const fmt = (n) => (Math.round(n * 1000) / 1000).toString();
+
 let toastT;
 function toast(m) {
   let t = document.querySelector(".toast");
   if (!t) { t = document.createElement("div"); t.className = "toast"; document.body.appendChild(t); }
   t.textContent = m; clearTimeout(toastT); toastT = setTimeout(() => t.remove(), 3400);
 }
-const tally = (r) => { const c = { pass: 0, fail: 0, na: 0 };
-  (r.items || []).forEach((i) => { if (c[i.result] !== undefined) c[i.result]++; }); return c; };
 
-/* ---------- 設定（localStorage） ---------- */
-const CFG_KEY = "mepcheck.site";
-let CFG = { name: "", vendor: "", by: "" };
+async function sha256(t) {
+  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
+  return Array.from(new Uint8Array(b)).map((x) => x.toString(16).padStart(2, "0")).join("");
+}
+
+/* ---------- 本機設定 ---------- */
+const CFG_KEY = "mepcheck.me";
+let CFG = { by: "" };
 try { Object.assign(CFG, JSON.parse(localStorage.getItem(CFG_KEY) || "{}")); } catch (e) {}
 function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); } catch (e) {} }
-/* 橫幅上的今日資訊：年月日、星期、時間、問候語 */
+
+const PACK_KEY = "mepcheck.pack";          // 案場設定檔的檔頭（不含項目）
+let PACK = null;
+try { PACK = JSON.parse(localStorage.getItem(PACK_KEY) || "null"); } catch (e) {}
+function savePack() {
+  try {
+    if (PACK) localStorage.setItem(PACK_KEY, JSON.stringify(PACK));
+    else localStorage.removeItem(PACK_KEY);
+  } catch (e) {}
+}
+
+/* ---------- 橫幅時間 ---------- */
 const WEEKDAY = ["日", "一", "二", "三", "四", "五", "六"];
 function greet(h) {
   if (h < 5) return "夜深了";
@@ -110,11 +64,12 @@ function paintClock() {
 let idb = null;
 function openDB() {
   return new Promise((res, rej) => {
-    const q = indexedDB.open("mepcheck", 1);
+    const q = indexedDB.open("mepcheck", 2);
     q.onupgradeneeded = () => {
-      const d = q.result;
-      if (!d.objectStoreNames.contains("records")) d.createObjectStore("records", { keyPath: "id" });
-      if (!d.objectStoreNames.contains("photos")) d.createObjectStore("photos", { keyPath: "id" });
+      const db = q.result;
+      if (!db.objectStoreNames.contains("records")) db.createObjectStore("records", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("photos")) db.createObjectStore("photos", { keyPath: "id" });
+      if (!db.objectStoreNames.contains("baseline")) db.createObjectStore("baseline", { keyPath: "k" });
     };
     q.onsuccess = () => res(q.result);
     q.onerror = () => rej(q.error);
@@ -127,18 +82,23 @@ const dbGet = (store, k) => new Promise((res, rej) => {
   const r = tx(store, "readonly").get(k); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
 const dbAll = (store) => new Promise((res, rej) => {
   const r = tx(store, "readonly").getAll(); r.onsuccess = () => res(r.result || []); r.onerror = () => rej(r.error); });
+const dbClear = (store) => new Promise((res, rej) => {
+  const r = tx(store, "readwrite").clear(); r.onsuccess = () => res(); r.onerror = () => rej(r.error); });
 
 /* ---------- 狀態 ---------- */
-let records = [], draft = null, editingId = null, viewing = null;
-const photoURL = new Map();                       // photoId -> objectURL（顯示用）
-async function urlFor(pid) {
-  if (photoURL.has(pid)) return photoURL.get(pid);
-  const p = await dbGet("photos", pid);
-  if (!p) return "";
-  const u = URL.createObjectURL(p.blob); photoURL.set(pid, u); return u;
+let records = [];        // 清點紀錄
+let base = [];           // 標單基準（記憶體快取）
+let draft = null, editingId = null;
+const photoURL = new Map();
+function urlFor(id) {
+  if (photoURL.has(id)) return Promise.resolve(photoURL.get(id));
+  return dbGet("photos", id).then((p) => {
+    if (!p) return "";
+    const u = URL.createObjectURL(p.blob); photoURL.set(id, u); return u;
+  });
 }
 
-/* ---------- 畫面 ---------- */
+/* ---------- 畫面切換 ---------- */
 const views = ["vList", "vForm", "vAdmin"];
 function show(v) {
   views.forEach((x) => { $(x).hidden = x !== v; });
@@ -147,201 +107,248 @@ function show(v) {
   $("tabAdmin").setAttribute("aria-pressed", String(v === "vAdmin"));
   window.scrollTo(0, 0);
 }
-$("tabSite").onclick = () => show("vList");
+$("tabSite").onclick = () => { show("vList"); renderList(); };
 $("tabAdmin").onclick = () => { renderAdmin(); show("vAdmin"); };
 $("btnBack").onclick = () => { show("vList"); renderList(); };
 
-/* ---------- 工地設定 ---------- */
-$("btnSite").onclick = () => {
-  $("sName").value = CFG.name; $("sVendor").value = CFG.vendor; $("sBy").value = CFG.by;
-  $("dlgSite").showModal();
-};
-$("dlgSite").addEventListener("close", () => {
-  if ($("dlgSite").returnValue !== "ok") return;
-  CFG.name = $("sName").value.trim(); CFG.vendor = $("sVendor").value.trim();
-  CFG.by = $("sBy").value.trim(); saveCfg(); toast("工地設定已儲存");
-});
-
-/* ---------- 表單 ---------- */
 const fill = (el, arr, cur) => { el.innerHTML = arr.map((v) =>
   `<option${v === cur ? " selected" : ""}>${esc(v)}</option>`).join(""); };
-function seg(el, arr, cur, cb) {
-  el.innerHTML = arr.map((v) =>
-    `<button type="button" data-v="${esc(v)}" aria-pressed="${v === cur}">${esc(v)}</button>`).join("");
-  el.querySelectorAll("button").forEach((b) => { b.onclick = () => {
-    el.querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", "false"));
-    b.setAttribute("aria-pressed", "true"); cb(b.dataset.v); }; });
-}
-const itemsFor = (sub) => (TEMPLATES[sub] || []).map(([stage, item, std]) =>
-  ({ stage, item, std, result: "", actual: "", photos: [] }));
 
 /* ---------- 案場 ---------- */
-const CASES = [
-  { id: "tamsui", icon: "🏗", name: "淡水高生物案", note: "機電自主檢查・逐項拍照" },
-];
 let pendingCase = null;
 
 function renderCases() {
-  $("caseBox").innerHTML = CASES.map((c) =>
-    `<button class="case" data-case="${esc(c.id)}">
-       <span class="ic">${esc(c.icon)}</span>
-       <span class="tx"><b>${esc(c.name)}</b><span>${esc(c.note)}</span></span>
-       <span class="go">›</span>
-     </button>`).join("");
-  $("caseBox").querySelectorAll("[data-case]").forEach((b) => {
-    b.onclick = () => {
-      pendingCase = CASES.find((c) => c.id === b.dataset.case);
-      $("whoCase").textContent = pendingCase.name;
-      $("whoName").value = CFG.by || "";
-      $("dlgWho").showModal();
-    };
-  });
+  const box = $("caseBox");
+  if (!PACK) {
+    box.innerHTML = `<div class="card pad tiny muted" style="text-align:center">
+      尚未匯入案場設定檔<br>請工務所用 LINE 傳檔案給你，
+      再由管理者在後台「📦 匯入案場設定檔」</div>`;
+    return;
+  }
+  box.innerHTML = `<button class="case" id="caseBtn">
+      <span class="ic">🏗</span>
+      <span class="tx"><b>${esc(PACK.案場)}</b><span>${esc(PACK.說明 || "現場清點")}
+        ・${PACK.項目數} 項</span></span>
+      <span class="go">${PACK.案場密碼雜湊 ? "🔒" : "›"}</span>
+    </button>`;
+  $("caseBtn").onclick = () => {
+    pendingCase = PACK;
+    $("whoCase").textContent = PACK.案場;
+    $("whoPassRow").hidden = !PACK.案場密碼雜湊;
+    $("whoPass").value = "";
+    $("whoName").value = CFG.by || "";
+    $("dlgWho").showModal();
+  };
 }
 
-$("dlgWho").addEventListener("close", () => {
+$("dlgWho").addEventListener("close", async () => {
   if ($("dlgWho").returnValue !== "ok" || !pendingCase) return;
   const who = $("whoName").value.trim();
-  if (!who) { toast("請填檢查人員姓名"); return; }
+  if (!who) { toast("請填清點人員姓名"); return; }
+  if (pendingCase.案場密碼雜湊) {
+    const p = $("whoPass").value; $("whoPass").value = "";
+    if (!p) { toast("請輸入案場密碼"); return; }
+    if (await sha256(pendingCase.鹽 + ":" + p) !== pendingCase.案場密碼雜湊) {
+      toast("案場密碼不正確"); return;
+    }
+  }
   CFG.by = who; saveCfg();
-  newDraft();
-  draft.caseName = pendingCase.name;
-  draft.inspector = who;
-  renderForm(); show("vForm");
+  newDraft(who);
+  await renderForm();
+  show("vForm");
 });
 
-function newDraft() {
-  const s = Object.keys(TEMPLATES)[0];
-  editingId = null;
-  draft = { subproject: s, zone: "B區", floor: "B1F", location: "", date: todayISO(),
-    stage: "施工中", timing: "不定期抽查", inspector: CFG.by || "", items: itemsFor(s) };
+/* ---------- 基準 ---------- */
+const bKey = (b, f, c) => b + "|" + f + "|" + c;
+const uniq = (a) => Array.from(new Set(a));
+
+function bldgs() { return uniq(base.map((r) => r.b)).sort(); }
+function floorsOf(b) { return uniq(base.filter((r) => r.b === b).map((r) => r.f)).sort(floorSort); }
+function sysOf(b, f) { return uniq(base.filter((r) => r.b === b && r.f === f).map((r) => r.s)).sort(); }
+
+const FLOOR_ORDER = ["筏基層", "B1F", "1F", "1F&2F", "2F", "3F", "4F", "R1F", "R1F~RRF", "RF"];
+function floorSort(a, b) {
+  const ia = FLOOR_ORDER.indexOf(a), ib = FLOOR_ORDER.indexOf(b);
+  if (ia < 0 && ib < 0) return a.localeCompare(b);
+  if (ia < 0) return 1;
+  if (ib < 0) return -1;
+  return ia - ib;
 }
-function renderForm() {
-  fill($("fSub"), Object.keys(TEMPLATES), draft.subproject);
-  fill($("fZone"), ZONES, draft.zone); fill($("fFloor"), FLOORS, draft.floor);
-  $("fLoc").value = draft.location; $("fDate").value = draft.date; $("fBy").value = draft.inspector;
-  seg($("fStage"), STAGES, draft.stage, (v) => { draft.stage = v; });
-  seg($("fTiming"), TIMINGS, draft.timing, (v) => { draft.timing = v; });
-  $("formCode").textContent = roc(draft.date);
-  renderItems();
-}
-async function renderItems() {
-  const parts = [];
-  for (let i = 0; i < draft.items.length; i++) {
-    const it = draft.items[i];
-    const shots = [];
-    for (let pi = 0; pi < it.photos.length; pi++) {
-      shots.push(`<div class="shot"><img src="${esc(await urlFor(it.photos[pi]))}" alt="">` +
-        `<button type="button" data-del="${pi}" aria-label="刪除照片">×</button></div>`);
-    }
-    parts.push(`<div class="item" data-i="${i}">
-      <h4><span class="chip">${esc(it.stage)}</span>${i + 1}. ${esc(it.item)}</h4>
-      <div class="std">規定標準：<span class="stdtext">${esc(it.std)}</span>
-        <button type="button" class="edit" data-edit>修改標準</button></div>
-      <div class="res">${RES.map(([k, l]) =>
-        `<button type="button" data-r="${k}" aria-pressed="${it.result === k}">${esc(l)}</button>`).join("")}</div>
-      <input type="text" class="actual" placeholder="實際檢查情形（可空白）" value="${esc(it.actual)}">
-      <div class="shots">${shots.join("")}
-        <button type="button" class="addshot" data-add><span style="font-size:1.3rem">＋</span>照片</button>
-      </div></div>`);
+
+/* 這台裝置累計已清點的量：b|f|c -> 數量 */
+function tallyMap() {
+  const m = new Map();
+  for (const r of records) for (const l of (r.lines || [])) {
+    const k = bKey(r.bldg, r.floor, l.c);
+    m.set(k, (m.get(k) || 0) + num(l.got));
   }
-  $("itemBox").innerHTML = parts.join("");
-  $("itemBox").querySelectorAll(".item").forEach((box) => {
-    const i = +box.dataset.i, it = draft.items[i];
-    box.querySelectorAll(".res button").forEach((b) => { b.onclick = () => {
-      it.result = it.result === b.dataset.r ? "" : b.dataset.r;
-      box.querySelectorAll(".res button").forEach((x) =>
-        x.setAttribute("aria-pressed", String(x.dataset.r === it.result)));
-      paintProgress(); }; });
-    box.querySelector(".actual").oninput = (e) => { it.actual = e.target.value; };
-    box.querySelector("[data-add]").onclick = () => pick(i);
-    box.querySelector("[data-edit]").onclick = () => {
-      const cur = it.std;
-      const v = window.prompt ? null : null;            // 行動裝置不用 prompt，改用內嵌輸入
-      const span = box.querySelector(".stdtext");
-      const inp = document.createElement("input");
-      inp.type = "text"; inp.value = cur; inp.style.marginTop = ".25rem";
-      span.replaceWith(inp); inp.focus();
-      inp.onblur = () => { it.std = inp.value.trim() || cur;
-        const s2 = document.createElement("span"); s2.className = "stdtext"; s2.textContent = it.std;
-        inp.replaceWith(s2); };
+  return m;
+}
+
+/* ---------- 清點表單 ---------- */
+function newDraft(who) {
+  editingId = null;
+  const b = bldgs()[0] || "";
+  const f = floorsOf(b)[0] || "";
+  draft = { bldg: b, floor: f, sys: sysOf(b, f)[0] || "", date: todayISO(),
+    by: who || CFG.by || "", note: "", got: {}, photos: [] };
+}
+
+async function renderForm() {
+  $("formCode").textContent = editingId ? (draft.code || "") : roc(draft.date);
+  fill($("fBldg"), bldgs(), draft.bldg);
+  fill($("fFloor"), floorsOf(draft.bldg), draft.floor);
+  fill($("fSys"), sysOf(draft.bldg, draft.floor), draft.sys);
+  $("fDate").value = draft.date;
+  $("fBy").value = draft.by;
+  $("fNote").value = draft.note || "";
+  renderItems();
+  await renderShots();
+}
+
+function currentItems() {
+  const q = ($("srch").value || "").trim().toLowerCase();
+  const only = $("onlyFilled").checked;
+  return base.filter((r) =>
+    r.b === draft.bldg && r.f === draft.floor && r.s === draft.sys &&
+    (!q || r.n.toLowerCase().includes(q) || r.c.toLowerCase().includes(q)) &&
+    (!only || num(draft.got[r.c]) > 0));
+}
+
+function renderItems() {
+  const acc = tallyMap();
+  const list = currentItems();
+  const all = base.filter((r) => r.b === draft.bldg && r.f === draft.floor && r.s === draft.sys);
+  const filled = all.filter((r) => num(draft.got[r.c]) > 0).length;
+  $("sumInfo").textContent = `顯示 ${list.length} / ${all.length} 項　本次已填 ${filled} 項`;
+
+  if (!list.length) {
+    $("itemBox").innerHTML = `<div class="empty tiny">沒有符合的項目</div>`;
+    return;
+  }
+  $("itemBox").innerHTML = list.map((r) => {
+    const done = acc.get(bKey(r.b, r.f, r.c)) || 0;
+    const v = draft.got[r.c];
+    return `<div class="cnt">
+      <div class="nm">${esc(r.n)}<i>${esc(r.c)}</i></div>
+      <div class="ln">
+        <span class="fig">標單 <b>${fmt(r.q)}</b>　已清點 <b>${fmt(done)}</b></span>
+        <input type="number" inputmode="decimal" step="any" min="0"
+          data-c="${esc(r.c)}" data-q="${r.q}" placeholder="0"
+          value="${v == null ? "" : esc(v)}">
+        <span class="un">${esc(r.u)}</span>
+      </div></div>`;
+  }).join("");
+
+  $("itemBox").querySelectorAll("input[data-c]").forEach((el) => {
+    const mark = () => el.classList.toggle("over", num(el.value) > num(el.dataset.q));
+    mark();
+    el.oninput = () => {
+      const t = el.value.trim();
+      if (t === "") delete draft.got[el.dataset.c];
+      else draft.got[el.dataset.c] = t;
+      mark();
     };
-    box.querySelectorAll("[data-del]").forEach((b) => { b.onclick = async () => {
-      it.photos.splice(+b.dataset.del, 1); await renderItems(); }; });
   });
-  paintProgress();
 }
-function paintProgress() {
-  const n = draft.items.filter((i) => i.result).length;
-  $("progress").textContent = `已標記 ${n}/${draft.items.length} 項`;
-}
-$("fSub").onchange = (e) => { draft.subproject = e.target.value;
-  draft.items = itemsFor(draft.subproject); renderItems(); };
-$("fZone").onchange = (e) => { draft.zone = e.target.value; };
-$("fFloor").onchange = (e) => { draft.floor = e.target.value; };
-$("fLoc").oninput = (e) => { draft.location = e.target.value; };
-$("fBy").oninput = (e) => { draft.inspector = e.target.value; };
-$("fDate").onchange = (e) => { draft.date = e.target.value; $("formCode").textContent = roc(draft.date); };
+
+$("fBldg").onchange = (e) => {
+  draft.bldg = e.target.value;
+  draft.floor = floorsOf(draft.bldg)[0] || "";
+  draft.sys = sysOf(draft.bldg, draft.floor)[0] || "";
+  draft.got = {};
+  fill($("fFloor"), floorsOf(draft.bldg), draft.floor);
+  fill($("fSys"), sysOf(draft.bldg, draft.floor), draft.sys);
+  renderItems();
+};
+$("fFloor").onchange = (e) => {
+  draft.floor = e.target.value;
+  draft.sys = sysOf(draft.bldg, draft.floor)[0] || "";
+  draft.got = {};
+  fill($("fSys"), sysOf(draft.bldg, draft.floor), draft.sys);
+  renderItems();
+};
+$("fSys").onchange = (e) => { draft.sys = e.target.value; renderItems(); };
+$("fDate").onchange = (e) => { draft.date = e.target.value;
+  if (!editingId) $("formCode").textContent = roc(draft.date); };
+$("fBy").oninput = (e) => { draft.by = e.target.value; };
+$("fNote").oninput = (e) => { draft.note = e.target.value; };
+$("srch").oninput = renderItems;
+$("onlyFilled").onchange = renderItems;
 
 /* ---------- 照片 ---------- */
 function shrink(file) {
-  return new Promise((res, rej) => {
-    const img = new Image(), u = URL.createObjectURL(file);
+  return new Promise((res) => {
+    const img = new Image();
     img.onload = () => {
-      const max = 1600, s = Math.min(1, max / Math.max(img.width, img.height));
-      const c = document.createElement("canvas");
-      c.width = Math.round(img.width * s); c.height = Math.round(img.height * s);
-      c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
-      URL.revokeObjectURL(u);
-      c.toBlob((b) => b ? res(b) : rej(new Error("壓縮失敗")), "image/jpeg", 0.8);
+      const m = 1600, sc = Math.min(1, m / Math.max(img.width, img.height));
+      const cv = document.createElement("canvas");
+      cv.width = Math.round(img.width * sc); cv.height = Math.round(img.height * sc);
+      cv.getContext("2d").drawImage(img, 0, 0, cv.width, cv.height);
+      cv.toBlob((b) => res(b || file), "image/jpeg", 0.8);
+      URL.revokeObjectURL(img.src);
     };
-    img.onerror = () => { URL.revokeObjectURL(u); rej(new Error("讀不到這張照片")); };
-    img.src = u;
+    img.onerror = () => res(file);
+    img.src = URL.createObjectURL(file);
   });
 }
-function pick(i) {
-  const inp = document.createElement("input");
-  inp.type = "file"; inp.accept = "image/*"; inp.capture = "environment"; inp.multiple = true;
-  inp.onchange = async () => {
-    const fs = Array.from(inp.files || []); if (!fs.length) return;
-    toast("處理照片中…");
-    for (const f of fs) {
-      try {
-        const blob = await shrink(f);
-        const id = "p" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-        await dbPut("photos", { id, blob });
-        draft.items[i].photos.push(id);
-      } catch (e) { toast("照片處理失敗：" + e.message); }
-    }
-    await renderItems(); toast("已加入照片");
+
+async function renderShots() {
+  const box = $("shots");
+  const kids = [];
+  for (const pid of draft.photos) {
+    kids.push(`<div class="shot"><img src="${esc(await urlFor(pid))}" alt="">
+      <button data-del="${esc(pid)}" aria-label="刪除">×</button></div>`);
+  }
+  kids.push(`<button class="addshot" id="addShot"><span>＋</span>照片</button>`);
+  box.innerHTML = kids.join("");
+  box.querySelectorAll("[data-del]").forEach((b) => { b.onclick = async () => {
+    draft.photos = draft.photos.filter((x) => x !== b.dataset.del);
+    await renderShots();
+  }; });
+  $("addShot").onclick = () => {
+    const inp = document.createElement("input");
+    inp.type = "file"; inp.accept = "image/*"; inp.capture = "environment"; inp.multiple = true;
+    inp.onchange = async () => {
+      for (const f of Array.from(inp.files || [])) {
+        const id = "p" + Date.now() + Math.random().toString(36).slice(2, 7);
+        await dbPut("photos", { id, blob: await shrink(f) });
+        draft.photos.push(id);
+      }
+      await renderShots();
+    };
+    inp.click();
   };
-  inp.click();
 }
 
 /* ---------- 儲存 ---------- */
 $("btnSave").onclick = async () => {
-  if (!CFG.name && !draft.caseName) {
-    toast("請先按右上「✎ 工地」設定工程名稱"); $("btnSite").click(); return;
+  if (!base.length) { toast("尚未匯入案場設定檔"); return; }
+  const by = ($("fBy").value || "").trim();
+  if (!by) { toast("請填清點人"); return; }
+
+  const lines = [];
+  for (const r of base) {
+    if (r.b !== draft.bldg || r.f !== draft.floor || r.s !== draft.sys) continue;
+    const g = draft.got[r.c];
+    if (g == null || String(g).trim() === "") continue;
+    lines.push({ c: r.c, n: r.n, u: r.u, q: r.q, got: num(g) });
   }
-  if (!draft.location.trim()) { toast("請填檢查位置"); $("fLoc").focus(); return; }
-  if (!draft.inspector.trim()) { toast("請填檢查人"); $("fBy").focus(); return; }
-  if (!draft.items.filter((i) => i.result).length) { toast("至少要標記一項檢查結果"); return; }
-  const day = roc(draft.date);
-  let code;
-  if (editingId) {
-    code = records.find((r) => r.id === editingId).code;
-  } else {
-    const n = records.filter((r) => roc(r.date) === day).length + 1;
+  if (!lines.length) { toast("至少填一個項目的數量"); return; }
+
+  let code = draft.code;
+  if (!editingId) {
+    const day = roc(draft.date);
+    const n = records.filter((r) => String(r.code || "").startsWith(day)).length + 1;
     code = day + "-" + pad(n, 2);
   }
-  const c = tally(draft);
-  const rec = Object.assign({}, draft, {
-    id: editingId || ("r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
-    code, site: CFG.name || draft.caseName || "", vendor: CFG.vendor,
-    caseName: draft.caseName || "",
-    result: c.fail > 0 ? "fail" : "pass",
-    fixed: editingId ? (records.find((r) => r.id === editingId).fixed || false) : false,
-    savedAt: Date.now()
-  });
+  const rec = {
+    id: editingId || ("r" + Date.now() + Math.random().toString(36).slice(2, 6)),
+    code, caseName: (PACK && PACK.案場) || "", caseId: (PACK && PACK.案場代號) || "",
+    bldg: draft.bldg, floor: draft.floor, sys: draft.sys,
+    date: draft.date, by, note: draft.note || "",
+    lines, photos: draft.photos.slice(), savedAt: Date.now(), cloudAt: 0,
+  };
   await dbPut("records", rec);
   records = await dbAll("records");
   toast("已儲存 " + code);
@@ -349,72 +356,86 @@ $("btnSave").onclick = async () => {
 };
 
 /* ---------- 清單 ---------- */
-function sortRecs() {
-  records.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0));
-}
+function sortRecs() { records.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0)); }
+
 function renderList() {
   sortRecs();
   const box = $("listBox");
   if (!records.length) {
-    box.innerHTML = `<div class="empty"><div class="big">📋</div><div>尚未有查驗紀錄</div>
+    box.innerHTML = `<div class="empty"><div class="big">📋</div><div>尚未有清點紀錄</div>
       <div class="tiny" style="margin-top:.3rem">按上方的案場開始第一筆</div></div>`;
     return;
   }
   box.innerHTML = records.map((r) => {
-    const c = tally(r);
-    const pill = r.result === "fail"
-      ? (r.fixed ? '<span class="pill fixed">已改善</span>' : `<span class="pill bad">缺失 ${c.fail}</span>`)
-      : '<span class="pill ok">合格</span>';
+    const over = (r.lines || []).some((l) => num(l.got) > num(l.q));
+    const pill = over ? '<span class="pill bad">有超量</span>'
+      : `<span class="pill ok">${(r.lines || []).length} 項</span>`;
     return `<div class="rec" data-id="${esc(r.id)}"><div style="min-width:0;flex:1">
-      <div style="font-weight:500">${esc(r.subproject)}</div>
-      <div class="tiny muted">${esc(r.zone)} ${esc(r.floor)}・${esc(r.location)}</div>
-      <div class="tiny mono muted">${esc(r.code)}　${esc(r.date)}　${esc(r.stage)}　${esc(r.inspector)}</div>
+      <div style="font-weight:700">${esc(r.bldg)} ${esc(r.floor)}・${esc(r.sys)}</div>
+      <div class="tiny muted">${esc(r.note || "")}</div>
+      <div class="tiny mono muted">${esc(r.code)}　${esc(r.date)}　${esc(r.by)}
+        ${(r.photos || []).length ? "　📷" + r.photos.length : ""}</div>
       </div><div>${pill}</div></div>`;
   }).join("");
   box.querySelectorAll(".rec").forEach((el) => { el.onclick = () => editRecord(el.dataset.id); });
 }
-function editRecord(id) {
+
+async function editRecord(id) {
   const r = records.find((x) => x.id === id); if (!r) return;
   editingId = id;
-  draft = JSON.parse(JSON.stringify(r));
-  renderForm(); show("vForm");
+  draft = { code: r.code, bldg: r.bldg, floor: r.floor, sys: r.sys, date: r.date,
+    by: r.by, note: r.note || "", got: {}, photos: (r.photos || []).slice() };
+  for (const l of r.lines || []) draft.got[l.c] = String(l.got);
+  await renderForm();
+  show("vForm");
 }
 
-/* ---------- 列印 ---------- */
+/* ---------- 列印：清點統計表 ---------- */
 $("btnPrint").onclick = async () => {
-  const c = tally(draft);
-  const rows = draft.items.map((it, i) => `<tr>
-    <td style="text-align:center">${i + 1}</td><td>${esc(it.stage)}</td><td>${esc(it.item)}</td>
-    <td>${esc(it.std)}</td><td>${esc(it.actual || "")}</td>
-    <td style="text-align:center">${esc(MARK[it.result] || "")}</td></tr>`).join("");
+  const acc = tallyMap();
+  const rows = base.filter((r) =>
+    r.b === draft.bldg && r.f === draft.floor && r.s === draft.sys &&
+    draft.got[r.c] != null && String(draft.got[r.c]).trim() !== "");
+  if (!rows.length) { toast("這張還沒有填任何數量"); return; }
+
+  const body = rows.map((r, i) => {
+    const g = num(draft.got[r.c]);
+    const done = acc.get(bKey(r.b, r.f, r.c)) || 0;
+    const d = done - r.q;
+    return `<tr><td style="text-align:center">${i + 1}</td>
+      <td>${esc(r.n)}<br><span style="font-size:8pt;color:#555">${esc(r.c)}</span></td>
+      <td style="text-align:center">${esc(r.u)}</td>
+      <td style="text-align:right">${fmt(r.q)}</td>
+      <td style="text-align:right">${fmt(g)}</td>
+      <td style="text-align:right">${fmt(done)}</td>
+      <td style="text-align:right">${d > 0 ? "+" : ""}${fmt(d)}</td></tr>`;
+  }).join("");
+
   const shots = [];
-  for (const it of draft.items) for (const pid of it.photos) {
-    shots.push(`<div class="ph"><img src="${esc(await urlFor(pid))}" alt="">
-      <div style="font-size:8pt">${esc(it.item)}　${esc(it.actual || "")}</div></div>`);
+  for (const pid of draft.photos) {
+    shots.push(`<div class="ph"><img src="${esc(await urlFor(pid))}" alt=""></div>`);
   }
+
   $("printArea").innerHTML = `
-    <div class="phd">
-      <div class="t"><b>施工自主檢查表</b>
-        <div>MEP SELF-INSPECTION CHECKLIST</div></div>
+    <div class="phd"><div class="t"><b>現 場 清 點 統 計 表</b>
+      <div>SITE QUANTITY TALLY</div></div>
       <div class="n">${esc(draft.code || roc(draft.date))}</div></div>
     <table><tbody>
-      <tr><th style="width:18%">工程名稱</th><td colspan="3">${esc(draft.site || CFG.name || draft.caseName || "")}</td></tr>
-      <tr><th>承攬廠商</th><td>${esc(draft.vendor || CFG.vendor)}</td>
-          <th style="width:18%">分項工程</th><td>${esc(draft.subproject)}</td></tr>
-      <tr><th>檢查位置</th><td>${esc(draft.zone)} ${esc(draft.floor)} ${esc(draft.location)}</td>
-          <th>檢查日期</th><td>民國 ${esc(roc(draft.date))}</td></tr>
-      <tr><th>施工流程</th><td>${esc(draft.stage)}</td><th>抽查時機</th><td>${esc(draft.timing)}</td></tr>
-      <tr><th>檢查人</th><td>${esc(draft.inspector)}</td>
-          <th>檢查結果</th><td>合格 ${c.pass}　缺失 ${c.fail}　無此項 ${c.na}</td></tr>
+      <tr><th style="width:18%">案場</th><td colspan="3">${esc((PACK && PACK.案場) || "")}</td></tr>
+      <tr><th>棟別樓層</th><td>${esc(draft.bldg)} ${esc(draft.floor)}</td>
+          <th style="width:18%">系統</th><td>${esc(draft.sys)}</td></tr>
+      <tr><th>清點日期</th><td>民國 ${esc(roc(draft.date))}</td>
+          <th>清點人</th><td>${esc(draft.by)}</td></tr>
+      ${draft.note ? `<tr><th>備註</th><td colspan="3">${esc(draft.note)}</td></tr>` : ""}
     </tbody></table>
-    <p style="margin:6pt 0 3pt">結果標記：○ 檢查合格　╳ 有缺失需改正　／ 無此檢查項目</p>
-    <table><thead><tr><th>項次</th><th>施工流程</th><th>管理項目</th>
-      <th>抽查標準（定量定性）</th><th>實際抽查情形</th><th>抽查結果</th></tr></thead>
-      <tbody>${rows}</tbody></table>
+    <p style="margin:6pt 0 3pt">「已清點」為本機累計；差異為已清點減標單，正值表示超出標單數量。</p>
+    <table><thead><tr><th>項次</th><th>項目及說明</th><th>單位</th>
+      <th>標單</th><th>本次</th><th>已清點</th><th>差異</th></tr></thead>
+      <tbody>${body}</tbody></table>
     <table style="margin-top:8pt"><tbody><tr>
-      <th style="width:25%">檢查人簽名</th><td style="height:46pt"></td>
-      <th style="width:25%">監造單位簽名</th><td></td></tr></tbody></table>
-    ${shots.length ? '<h3 style="margin-top:10pt">自主檢查照片</h3>' + shots.join("") : ""}`;
+      <th style="width:25%">清點人簽名</th><td style="height:46pt"></td>
+      <th style="width:25%">複核</th><td></td></tr></tbody></table>
+    ${shots.length ? '<h3 style="margin-top:10pt">現場照片</h3>' + shots.join("") : ""}`;
   window.print();
 };
 
@@ -429,13 +450,13 @@ $("btnBackup").onclick = async () => {
   if (!records.length) { toast("還沒有資料可備份"); return; }
   toast("打包中…");
   const zip = new JSZip();
-  zip.file("records.json", JSON.stringify({ site: CFG, records }, null, 1));
+  zip.file("records.json", JSON.stringify({ me: CFG, pack: PACK, records }, null, 1));
   const pf = zip.folder("photos");
   const photos = await dbAll("photos");
   const used = new Set();
-  records.forEach((r) => r.items.forEach((i) => (i.photos || []).forEach((p) => used.add(p))));
+  records.forEach((r) => (r.photos || []).forEach((p) => used.add(p)));
   photos.forEach((p) => { if (used.has(p.id)) pf.file(p.id + ".jpg", p.blob); });
-  saveFile("機電查驗備份_" + (CFG.by || "現場") + "_" + todayISO() + ".zip",
+  saveFile("清點備份_" + (CFG.by || "現場") + "_" + todayISO() + ".zip",
     await zip.generateAsync({ type: "blob" }));
   toast("備份完成，請用 LINE 或 Email 傳回工務所");
 };
@@ -463,53 +484,70 @@ $("btnImport").onclick = () => {
     }
     records = await dbAll("records");
     renderAdmin(); renderList();
-    toast("已匯入 " + added + " 筆查驗");
+    toast("已匯入 " + added + " 筆清點");
   };
   inp.click();
 };
 
-/* ---------- 後台 ---------- */
-/* ---------- 管理者（後台開關） ----------
-   這是畫面上的鎖，不是資料的鎖：網站原始碼是公開的，密碼比對在瀏覽器裡做。
-   它擋的是同仁誤按後台，真正的防線是線上空間那組由伺服器驗證的通行碼。 */
-const ADMIN_KEY = "mepcheck.admin";
-let adminOn = false;
-
-async function sha256(t) {
-  const b = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(t));
-  return Array.from(new Uint8Array(b)).map((x) => x.toString(16).padStart(2, "0")).join("");
+/* ---------- 案場設定檔 ---------- */
+async function loadPack(obj) {
+  if (!obj || !Array.isArray(obj.項目)) throw new Error("不是案場設定檔");
+  await dbClear("baseline");
+  const store = idb.transaction("baseline", "readwrite").objectStore("baseline");
+  for (const r of obj.項目) store.put({ k: bKey(r.b, r.f, r.c), ...r });
+  await new Promise((res, rej) => {
+    store.transaction.oncomplete = res; store.transaction.onerror = () => rej(store.transaction.error);
+  });
+  PACK = { 版本: obj.版本, 案場: obj.案場, 案場代號: obj.案場代號, 說明: obj.說明,
+    來源: obj.來源, 產生日期: obj.產生日期, 鹽: obj.鹽,
+    案場密碼雜湊: obj.案場密碼雜湊 || "", 管理者密碼雜湊: obj.管理者密碼雜湊 || "",
+    項目數: obj.項目.length };
+  savePack();
+  base = await dbAll("baseline");
 }
-function adminHash() { try { return localStorage.getItem(ADMIN_KEY) || ""; } catch (e) { return ""; } }
+$("btnCfgIn").onclick = () => {
+  const inp = document.createElement("input");
+  inp.type = "file"; inp.accept = ".json,application/json";
+  inp.onchange = async () => {
+    const f = (inp.files || [])[0]; if (!f) return;
+    toast("匯入中…");
+    try {
+      await loadPack(JSON.parse(await f.text()));
+      renderCases(); renderAdmin();
+      toast("已匯入 " + PACK.案場 + "　" + PACK.項目數 + " 項");
+    } catch (e) { toast("匯入失敗：" + e.message); }
+  };
+  inp.click();
+};
+$("btnCfgOut").onclick = async () => {
+  if (!PACK || !base.length) { toast("還沒有案場設定檔"); return; }
+  const obj = Object.assign({}, PACK);
+  delete obj.項目數;
+  obj.項目 = base.map(({ k, ...r }) => r);
+  saveFile("職人百寶箱_案場設定檔_" + safe(PACK.案場) + ".json",
+    new Blob([JSON.stringify(obj)], { type: "application/json" }));
+  toast("已匯出，請用 LINE 傳給同仁");
+};
+
+/* ---------- 管理者 ----------
+   密碼雜湊來自案場設定檔，不在這個網站的程式裡。 */
+let adminOn = false;
 function paintAdminTab() {
   $("tabAdmin").hidden = !adminOn;
   if (!adminOn && !$("vAdmin").hidden) show("vList");
 }
-
 $("btnAdmin").onclick = () => {
-  const has = !!adminHash();
-  $("admTitle").textContent = has ? "管理者登入" : "設定管理者密碼";
-  $("admNote").textContent = has
-    ? "輸入密碼後才會出現「後台」分頁。"
-    : "這台裝置還沒設過。現在輸入的就是往後的管理者密碼，只存在這台裝置。";
-  $("admOk").textContent = has ? "登入" : "設定並登入";
+  if (!PACK || !PACK.管理者密碼雜湊) {
+    toast("這台裝置還沒有案場設定檔，無法驗證管理者密碼"); return;
+  }
   $("admPass").value = "";
   $("dlgAdmin").showModal();
 };
 $("dlgAdmin").addEventListener("close", async () => {
   if ($("dlgAdmin").returnValue !== "ok") return;
-  const v = $("admPass").value;
-  $("admPass").value = "";
+  const v = $("admPass").value; $("admPass").value = "";
   if (!v) { toast("請輸入密碼"); return; }
-  if (!window.crypto || !crypto.subtle) { toast("這個瀏覽器不支援密碼驗證，請用 https 開啟"); return; }
-  const h = await sha256(v);
-  const cur = adminHash();
-  if (!cur) {
-    try { localStorage.setItem(ADMIN_KEY, h); } catch (e) {}
-    adminOn = true; paintAdminTab(); renderAdmin(); show("vAdmin");
-    toast("管理者密碼已設定");
-    return;
-  }
-  if (h !== cur) { toast("密碼不正確"); return; }
+  if (await sha256(PACK.鹽 + ":" + v) !== PACK.管理者密碼雜湊) { toast("密碼不正確"); return; }
   adminOn = true; paintAdminTab(); renderAdmin(); show("vAdmin");
   toast("已登入管理者");
 });
@@ -518,7 +556,7 @@ $("btnAdminOut").onclick = () => {
   toast("已登出管理者");
 };
 
-/* ---------- 線上空間（管理者） ---------- */
+/* ---------- 線上空間 ---------- */
 const CLOUD_KEY = "mepcheck.cloud";
 let CLOUD = null;
 try { CLOUD = JSON.parse(localStorage.getItem(CLOUD_KEY) || "null"); } catch (e) {}
@@ -528,11 +566,18 @@ function saveCloud() {
     else localStorage.removeItem(CLOUD_KEY);
   } catch (e) {}
 }
-
-/* Apps Script 不接受帶自訂標頭的請求（會觸發 preflight），
-   所以用 text/plain 送出，伺服器端自己 JSON.parse。 */
+function sayWhy(err) {
+  const m = String(err && err.message ? err.message : err);
+  if (err && err.name === "AbortError") return "連線逾時。網路太慢，或照片太多單筆跑不完";
+  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) {
+    return navigator.onLine
+      ? "連不上這個網址。請確認網址沒打錯，且部署時「誰可以存取」選的是「所有人」"
+      : "目前沒有網路，連不上線上空間";
+  }
+  return m;
+}
 async function cloudCall(body, ms) {
-  if (!CLOUD) throw new Error("尚未登入");
+  if (!CLOUD) throw new Error("尚未設定線上空間");
   const ac = new AbortController();
   const t = setTimeout(() => ac.abort(), ms || 20000);
   try {
@@ -547,26 +592,10 @@ async function cloudCall(body, ms) {
     }
     if (!out.ok) throw new Error(out.error || "伺服器拒絕");
     return out;
-  } catch (err) {
-    throw new Error(sayWhy(err));
-  } finally { clearTimeout(t); }
+  } catch (err) { throw new Error(sayWhy(err)); } finally { clearTimeout(t); }
 }
-
-/* 把瀏覽器的原始錯誤翻成現場看得懂的話 */
-function sayWhy(err) {
-  const m = String(err && err.message ? err.message : err);
-  if (err && err.name === "AbortError") return "連線逾時。網路太慢，或照片太多單筆跑不完";
-  if (/Failed to fetch|NetworkError|Load failed/i.test(m)) {
-    return navigator.onLine
-      ? "連不上這個網址。請確認網址沒打錯，且部署時「誰可以存取」選的是「所有人」"
-      : "目前沒有網路，連不上線上空間";
-  }
-  return m;
-}
-
 function paintCloud(note) {
-  const box = $("cloudBox");
-  box.hidden = !CLOUD;
+  $("cloudBox").hidden = !CLOUD;
   if (!CLOUD) return;
   $("cloudUrl").textContent = CLOUD.url;
   const done = records.filter((r) => r.cloudAt).length;
@@ -576,7 +605,6 @@ function paintCloud(note) {
     ? "最後上傳：" + new Date(CLOUD.lastAt).toLocaleString("zh-TW")
     : "尚未上傳過。按「存入線上空間」把本機紀錄與照片送上去。");
 }
-
 $("btnCloudSetup").onclick = () => {
   $("cUrl").value = CLOUD ? CLOUD.url : "";
   $("cPass").value = CLOUD ? CLOUD.pass : "";
@@ -596,21 +624,25 @@ $("dlgCloud").addEventListener("close", async () => {
     const out = await cloudCall({ action: "ping" }, 25000);
     CLOUD.lastAt = keep && keep.url === url ? keep.lastAt : 0;
     saveCloud(); paintCloud(); renderAdmin();
-    toast("已登入　線上已有 " + (out.count || 0) + " 筆");
+    toast("已連線　線上已有 " + (out.count || 0) + " 筆");
   } catch (e) {
     CLOUD = keep; saveCloud(); paintCloud();
-    toast("登入失敗：" + e.message);
+    toast("連線失敗：" + e.message);
   }
 });
-$("btnCloudOut").onclick = () => {
-  CLOUD = null; saveCloud(); paintCloud();
-  toast("已登出，本機資料不受影響");
-};
+$("btnCloudOut").onclick = () => { CLOUD = null; saveCloud(); paintCloud(); toast("已移除線上空間設定"); };
 $("btnCloudTest").onclick = async () => {
   toast("測試中…");
   try { const o = await cloudCall({ action: "ping" }); paintCloud("連線正常　線上 " + (o.count || 0) + " 筆"); }
   catch (e) { paintCloud("連線失敗：" + e.message); }
 };
+function blobToB64(b) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result).split(",")[1]);
+    fr.onerror = rej; fr.readAsDataURL(b);
+  });
+}
 $("btnCloudPush").onclick = async () => {
   if (!records.length) { toast("沒有資料可上傳"); return; }
   const btn = $("btnCloudPush"); btn.disabled = true;
@@ -620,86 +652,95 @@ $("btnCloudPush").onclick = async () => {
     paintCloud("上傳中… " + (i + 1) + "/" + records.length + "　" + r.code);
     try {
       const photos = [];
-      for (const it of r.items) for (const pid of (it.photos || [])) {
+      for (const pid of (r.photos || [])) {
         const ph = await dbGet("photos", pid); if (!ph) continue;
-        photos.push({ id: pid, item: it.item, b64: await blobToB64(ph.blob) });
+        photos.push({ id: pid, b64: await blobToB64(ph.blob) });
       }
       await cloudCall({ action: "push", record: r, photos }, 120000);
       r.cloudAt = Date.now(); await dbPut("records", r); ok++;
     } catch (e) { fail++; lastErr = e.message; }
   }
   CLOUD.lastAt = Date.now(); saveCloud();
-  btn.disabled = false;
-  renderAdmin();
+  btn.disabled = false; renderAdmin();
   paintCloud(fail ? ("完成 " + ok + " 筆，失敗 " + fail + " 筆：" + lastErr)
     : ("全部 " + ok + " 筆已存入線上空間"));
   toast(fail ? ("有 " + fail + " 筆失敗") : "已存入線上空間");
 };
-function blobToB64(b) {
-  return new Promise((res, rej) => {
-    const fr = new FileReader();
-    fr.onload = () => res(String(fr.result).split(",")[1]);
-    fr.onerror = rej;
-    fr.readAsDataURL(b);
-  });
+
+/* ---------- 後台 ---------- */
+/* 以 棟別×樓層×系統 為單位：標單項數、已清點項數、完成率 */
+function groupStats() {
+  const acc = tallyMap();
+  const g = new Map();
+  for (const r of base) {
+    const k = r.b + "|" + r.f + "|" + r.s;
+    if (!g.has(k)) g.set(k, { b: r.b, f: r.f, s: r.s, total: 0, done: 0 });
+    const o = g.get(k);
+    o.total++;
+    if ((acc.get(bKey(r.b, r.f, r.c)) || 0) > 0) o.done++;
+  }
+  return Array.from(g.values()).sort((x, y) =>
+    x.b.localeCompare(y.b) || floorSort(x.f, y.f) || x.s.localeCompare(y.s));
 }
 
 function renderAdmin() {
-  sortRecs();
-  const openFail = records.filter((r) => r.result === "fail" && !r.fixed).length;
-  const failItems = records.reduce((n, r) => n + tally(r).fail, 0);
+  const acc = tallyMap();
+  const counted = base.filter((r) => (acc.get(bKey(r.b, r.f, r.c)) || 0) > 0).length;
+  const over = base.filter((r) => (acc.get(bKey(r.b, r.f, r.c)) || 0) > r.q).length;
+  const pct = base.length ? Math.round(counted / base.length * 1000) / 10 : 0;
   $("stats").innerHTML =
-    `<div class="stat"><b>${records.length}</b><span>查驗總數</span></div>
-     <div class="stat ok"><b>${records.filter((r) => r.result === "pass").length}</b><span>全部合格</span></div>
-     <div class="stat bad"><b>${openFail}</b><span>缺失未改善</span></div>
-     <div class="stat"><b>${failItems}</b><span>缺失項次</span></div>`;
-  $("tblEmpty").hidden = records.length > 0;
-  $("tbody").innerHTML = records.map((r) => {
-    const c = tally(r);
-    const st = r.result === "pass" ? '<span class="pill ok">合格</span>'
-      : r.fixed ? '<span class="pill fixed">已改善</span>' : '<span class="pill bad">待改善</span>';
-    return `<tr><td class="num">${esc(r.code)}</td><td class="num">${esc(r.date)}</td>
-      <td>${esc(r.zone)} ${esc(r.floor)}</td><td>${esc(r.subproject)}</td><td>${esc(r.stage)}</td>
-      <td>${esc(r.location)}</td><td>${esc(r.inspector)}</td>
-      <td class="num">${c.pass}</td><td class="num">${c.fail}</td><td>${st}</td>
-      <td><button class="btn sm" data-fix="${esc(r.id)}"${r.result === "fail" && !r.fixed ? "" : " hidden"}>標記已改善</button></td></tr>`;
+    `<div class="stat"><b>${records.length}</b><span>清點筆數</span></div>
+     <div class="stat"><b>${base.length}</b><span>標單項數</span></div>
+     <div class="stat ok"><b>${counted}</b><span>已清點項數</span></div>
+     <div class="stat${over ? " bad" : ""}"><b>${over}</b><span>超出標單項數</span></div>
+     <div class="stat"><b>${pct}%</b><span>完成率</span></div>`;
+
+  $("cfgInfo").textContent = PACK
+    ? `案場設定檔：${PACK.案場}　${PACK.項目數} 項　產生於 ${PACK.產生日期 || "—"}`
+    : "尚未匯入案場設定檔，現場無法開始清點。";
+
+  const rows = groupStats();
+  $("tblEmpty").hidden = rows.length > 0;
+  $("tbody").innerHTML = rows.map((o) => {
+    const p = o.total ? Math.round(o.done / o.total * 1000) / 10 : 0;
+    return `<tr><td>${esc(o.b)}</td><td>${esc(o.f)}</td><td>${esc(o.s)}</td>
+      <td class="num">${o.total}</td><td class="num">${o.done}</td>
+      <td class="num">${p}%</td></tr>`;
   }).join("");
-  $("tbody").querySelectorAll("[data-fix]").forEach((b) => { b.onclick = async () => {
-    const r = records.find((x) => x.id === b.dataset.fix); if (!r) return;
-    r.fixed = true; r.cloudAt = 0; await dbPut("records", r);
-    renderAdmin(); toast("已標記為改善完成"); }; });
   paintCloud();
 }
 
 /* ---------- 匯出 ---------- */
-const book = (name, rows) => {
+function book(sheet, rows) {
   const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name);
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), sheet);
   return new Blob([XLSX.write(wb, { bookType: "xlsx", type: "array" })],
     { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-};
+}
 $("exXlsx").onclick = () => {
-  if (!records.length) { toast("沒有資料"); return; }
-  const head = ["編號", "檢查日期", "民國", "工程名稱", "區域", "樓層", "檢查位置", "分項工程",
-    "施工流程", "抽查時機", "檢查人", "項目數", "合格", "缺失", "無此項", "結果", "改善狀態"];
-  const body = records.map((r) => { const c = tally(r);
-    return [r.code, r.date, roc(r.date), r.site || "", r.zone, r.floor, r.location, r.subproject,
-      r.stage, r.timing, r.inspector, r.items.length, c.pass, c.fail, c.na,
-      c.fail ? "有缺失" : "合格", c.fail ? (r.fixed ? "已改善" : "待改善") : "—"]; });
-  saveFile("機電施工查驗_清查總表_" + todayISO() + ".xlsx", book("清查總表", [head].concat(body)));
-  toast("清查總表已下載");
+  if (!base.length) { toast("尚未匯入案場設定檔"); return; }
+  const acc = tallyMap();
+  const head = ["棟別", "樓層", "系統", "項次", "項目及說明", "單位",
+    "標單數量", "已清點數量", "差異", "完成"];
+  const rows = base.map((r) => {
+    const done = acc.get(bKey(r.b, r.f, r.c)) || 0;
+    return [r.b, r.f, r.s, r.c, r.n, r.u, r.q, done,
+      Math.round((done - r.q) * 1000) / 1000, done > 0 ? (done >= r.q ? "足量" : "部分") : ""];
+  });
+  saveFile("清點統計表_" + todayISO() + ".xlsx", book("清點統計", [head].concat(rows)));
+  toast("清點統計表已下載");
 };
-$("exFix").onclick = () => {
-  const out = [];
-  records.forEach((r) => r.items.forEach((it) => { if (it.result === "fail")
-    out.push([r.code, r.date, r.zone + " " + r.floor, r.location, r.subproject, it.stage,
-      it.item, it.std, it.actual || "", r.inspector, r.fixed ? "已改善" : "待改善",
-      (it.photos || []).length]); }));
-  if (!out.length) { toast("沒有缺失項目"); return; }
-  const head = ["編號", "檢查日期", "區域樓層", "檢查位置", "分項工程", "施工流程",
-    "管理項目", "抽查標準", "實際抽查情形", "檢查人", "改善狀態", "照片數"];
-  saveFile("機電施工查驗_缺失追蹤表_" + todayISO() + ".xlsx", book("缺失追蹤", [head].concat(out)));
-  toast("缺失追蹤表已下載");
+$("exDetail").onclick = () => {
+  if (!records.length) { toast("沒有資料"); return; }
+  const head = ["編號", "清點日期", "民國", "案場", "棟別", "樓層", "系統",
+    "項次", "項目及說明", "單位", "標單數量", "本次清點", "清點人", "備註", "照片數"];
+  const rows = [];
+  for (const r of records) for (const l of (r.lines || [])) {
+    rows.push([r.code, r.date, roc(r.date), r.caseName || "", r.bldg, r.floor, r.sys,
+      l.c, l.n, l.u, l.q, l.got, r.by, r.note || "", (r.photos || []).length]);
+  }
+  saveFile("清點明細_" + todayISO() + ".xlsx", book("清點明細", [head].concat(rows)));
+  toast("清點明細已下載");
 };
 $("exZip").onclick = async () => {
   if (!records.length) { toast("沒有資料"); return; }
@@ -707,61 +748,17 @@ $("exZip").onclick = async () => {
   const zip = new JSZip();
   let total = 0;
   for (const r of records) {
-    const dir = zip.folder(r.code + "_" + r.zone + r.floor + "-" + r.subproject).folder("自檢照片");
+    const dir = zip.folder(safe(r.code + "_" + r.bldg + r.floor + "-" + r.sys));
     let k = 0;
-    for (const it of r.items) for (const pid of (it.photos || [])) {
+    for (const pid of (r.photos || [])) {
       const p = await dbGet("photos", pid); if (!p) continue;
       k++; total++;
-      dir.file(pad(k, 2) + "_" + safe(it.item) + ".jpg", p.blob);
+      dir.file(pad(k, 2) + ".jpg", p.blob);
     }
   }
-  if (!total) { toast("這些查驗沒有照片"); return; }
-  saveFile("機電施工查驗_自檢照片_" + todayISO() + ".zip", await zip.generateAsync({ type: "blob" }));
-  toast("照片已打包（" + total + " 張）");
-};
-$("exDocx").onclick = async () => {
-  if (typeof docx === "undefined") { toast("Word 元件未載入，請在有網路時再試"); return; }
-  if (!records.length) { toast("沒有資料"); return; }
-  const rows = records.slice(0, 20);
-  toast("產生 Word 中…");
-  const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell,
-    WidthType, AlignmentType, ImageRun } = docx;
-  const F = "微軟正黑體";
-  const tx2 = (t, o) => new TextRun(Object.assign({ text: String(t == null ? "" : t), font: F, size: 20 }, o || {}));
-  const p = (t, o) => new Paragraph({ children: [tx2(t, o)] });
-  const cell = (t, w, b) => new TableCell({ width: { size: w, type: WidthType.DXA },
-    children: [new Paragraph({ children: [tx2(t, { bold: b, size: 18 })] })] });
-  const secs = [];
-  for (const r of rows) {
-    const kids = [];
-    kids.push(
-      new Paragraph({ children: [tx2("施工自主檢查表", { bold: true, size: 30 })],
-        alignment: AlignmentType.CENTER }),
-      p("編號：" + (r.code || ""), { size: 18 }),
-      p("工程名稱：" + (r.site || "")),
-      p("分項工程：" + r.subproject + "　承攬廠商：" + (r.vendor || "")),
-      p("檢查位置：" + r.zone + " " + r.floor + " " + r.location + "　檢查日期：民國 " + roc(r.date)),
-      p("施工流程：" + r.stage + "　抽查時機：" + r.timing + "　檢查人：" + r.inspector),
-      p(""),
-      new Table({ width: { size: 9360, type: WidthType.DXA },
-        columnWidths: [1100, 1900, 2700, 2200, 1460],
-        rows: [new TableRow({ tableHeader: true, children: [
-          cell("施工流程", 1100, 1), cell("管理項目", 1900, 1), cell("抽查標準", 2700, 1),
-          cell("實際抽查情形", 2200, 1), cell("抽查結果", 1460, 1)] })]
-          .concat(r.items.map((it) => new TableRow({ children: [
-            cell(it.stage, 1100), cell(it.item, 1900), cell(it.std, 2700),
-            cell(it.actual || "", 2200), cell(MARK[it.result] || "", 1460)] }))) }));
-    for (const it of r.items) for (const pid of (it.photos || [])) {
-      const ph = await dbGet("photos", pid); if (!ph) continue;
-      kids.push(new Paragraph({ children: [new ImageRun({ type: "jpg",
-        data: await ph.blob.arrayBuffer(), transformation: { width: 300, height: 225 } })] }));
-      kids.push(p(it.item + "　" + (it.actual || ""), { size: 16 }));
-    }
-    secs.push({ children: kids });
-  }
-  saveFile("自主檢查表_" + (rows.length === 1 ? rows[0].code : rows.length + "份") + ".docx",
-    await Packer.toBlob(new Document({ sections: secs })));
-  toast("自主檢查表已下載");
+  if (!total) { toast("這些清點沒有照片"); return; }
+  saveFile("清點照片_" + todayISO() + ".zip", await zip.generateAsync({ type: "blob" }));
+  toast("已打包 " + total + " 張照片");
 };
 
 /* ---------- 啟動 ---------- */
@@ -772,14 +769,14 @@ $("exDocx").onclick = async () => {
   try {
     idb = await openDB();
     records = await dbAll("records");
+    base = await dbAll("baseline");
+    if (PACK) PACK.項目數 = base.length;
   } catch (e) {
     $("offTip").hidden = false;
     $("offTip").textContent = "這個瀏覽器不支援本機儲存，資料無法保存。請改用 Chrome 或 Safari。";
   }
-  newDraft(); renderCases(); renderList(); paintAdminTab();
+  renderCases(); renderList(); paintAdminTab();
   const showOff = () => { $("offTip").hidden = navigator.onLine; };
   window.addEventListener("online", showOff); window.addEventListener("offline", showOff); showOff();
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").catch(() => {});
-  }
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 })();

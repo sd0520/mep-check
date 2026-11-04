@@ -81,6 +81,24 @@ header h1{font-size:.98rem;font-weight:700;letter-spacing:.02em;white-space:nowr
 .case .tx b{display:block;font-size:.98rem;font-weight:700;margin-bottom:.05rem}
 .case .tx span{font-size:.78rem;color:var(--fg-dim)}
 .case .go{color:var(--fg-dim);font-size:1.05rem;flex:0 0 auto}
+.cnt{border-top:1px solid var(--line);padding:.6rem 0}
+.cnt:first-of-type{border-top:0}
+.cnt .nm{font-size:.86rem;line-height:1.45;margin-bottom:.3rem}
+.cnt .nm i{font-style:normal;font-family:var(--mono);font-size:.7rem;color:var(--fg-dim);
+  display:block}
+.cnt .ln{display:flex;align-items:center;gap:.5rem}
+.cnt .fig{flex:1;min-width:0;font-size:.76rem;color:var(--fg-dim);
+  font-variant-numeric:tabular-nums}
+.cnt .fig b{color:var(--fg);font-weight:700}
+.cnt input{width:5.6rem;flex:0 0 auto;text-align:right;background:var(--surface);
+  border:1px solid var(--line);border-radius:9px;padding:.4rem .5rem;min-height:2.5rem;
+  font-variant-numeric:tabular-nums}
+.cnt input.over{border-color:var(--bad);color:var(--bad);font-weight:700}
+.cnt .un{flex:0 0 auto;font-size:.78rem;color:var(--fg-dim);width:1.8rem}
+#srch{width:100%;background:var(--surface);border:1px solid var(--line);
+  border-radius:9px;padding:.5rem .7rem;min-height:2.7rem;margin-bottom:.5rem}
+.sumline{display:flex;gap:.5rem;align-items:center;font-size:.78rem;
+  color:var(--fg-dim);margin-bottom:.5rem}
 .spacer{flex:1 1 auto;min-width:0}
 .chipbtn{background:rgba(255,255,255,.15);border:1px solid rgba(255,255,255,.14);
   color:#fff;border-radius:999px;
@@ -208,7 +226,6 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <div class="wrap">
     <h1>職人百寶箱</h1>
     <div class="spacer"></div>
-    <button class="chipbtn" id="btnSite">✎ 工地</button>
     <button class="chipbtn" id="btnBackup">💾 備份</button>
   </div>
 </header>
@@ -227,15 +244,15 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 
   <!-- 清單 -->
   <section id="vList">
-    <div class="sect">今天要查哪個案場</div>
+    <div class="sect">今天要清點哪個案場</div>
     <div id="caseBox" style="margin-bottom:1.3rem"></div>
-    <div class="sect">本機查驗紀錄</div>
+    <div class="sect">本機清點紀錄</div>
     <div class="card pad" id="listBox"></div>
     <p class="foot">資料只存在這台手機・換手機前記得先按右上「💾 備份」</p>
     <div style="text-align:center"><button class="btn sm" id="btnAdmin">🔒 管理者登入</button></div>
   </section>
 
-  <!-- 填表 -->
+  <!-- 清點 -->
   <section id="vForm" hidden>
     <div class="row" style="margin-bottom:.8rem">
       <button class="btn sm" id="btnBack">← 返回</button>
@@ -245,27 +262,32 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
       <button class="btn sm primary" id="btnSave">儲存</button>
     </div>
     <div class="card pad" style="margin-bottom:1rem">
-      <label class="f"><span>分項工程</span><select id="fSub"></select></label>
       <div class="grid2">
-        <label class="f"><span>區域</span><select id="fZone"></select></label>
+        <label class="f"><span>棟別</span><select id="fBldg"></select></label>
         <label class="f"><span>樓層</span><select id="fFloor"></select></label>
       </div>
-      <label class="f"><span>檢查位置</span>
-        <input type="text" id="fLoc" placeholder="例：B1F 電氣室上方橋架"></label>
+      <label class="f"><span>系統</span><select id="fSys"></select></label>
       <div class="grid2">
-        <label class="f"><span>檢查日期</span><input type="date" id="fDate"></label>
-        <label class="f"><span>檢查人</span><input type="text" id="fBy" placeholder="姓名"></label>
+        <label class="f" style="margin-bottom:0"><span>清點日期</span>
+          <input type="date" id="fDate"></label>
+        <label class="f" style="margin-bottom:0"><span>清點人</span>
+          <input type="text" id="fBy" placeholder="姓名"></label>
       </div>
-      <label class="f"><span>施工流程</span><div class="seg" id="fStage"></div></label>
-      <label class="f" style="margin-bottom:0"><span>抽查時機</span><div class="seg" id="fTiming"></div></label>
     </div>
-    <div class="row tiny muted" style="margin-bottom:.4rem">
-      結果標記：<span style="color:var(--ok);font-weight:700">○ 合格</span>
-      <span style="color:var(--bad);font-weight:700">╳ 缺失</span>
-      <span style="color:var(--na)">／ 無此項</span>
-      <div class="spacer"></div><span id="progress"></span>
+
+    <input type="search" id="srch" placeholder="搜尋項目名稱或項次⋯">
+    <div class="sumline"><span id="sumInfo"></span><div class="spacer"></div>
+      <label class="tiny" style="display:flex;align-items:center;gap:.3rem;cursor:pointer">
+        <input type="checkbox" id="onlyFilled" style="width:auto;min-height:0"> 只看已填</label>
     </div>
     <div class="card pad" id="itemBox"></div>
+
+    <div class="card pad" style="margin-top:1rem">
+      <div class="sect" style="margin-bottom:.5rem">現場照片</div>
+      <div class="shots" id="shots"></div>
+      <label class="f" style="margin:.9rem 0 0"><span>備註</span>
+        <input type="text" id="fNote" placeholder="例：3F 北側尚未進場"></label>
+    </div>
   </section>
 
   <!-- 後台 -->
@@ -290,11 +312,15 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     <div class="card pad" style="margin-bottom:1rem">
       <div class="row">
         <button class="btn" id="btnImport">📥 匯入同仁備份</button>
-        <button class="btn" id="exXlsx">⬇ 清查總表</button>
-        <button class="btn" id="exFix">⬇ 缺失追蹤表</button>
+        <button class="btn" id="exXlsx">⬇ 清點統計表</button>
+        <button class="btn" id="exDetail">⬇ 清點明細</button>
         <button class="btn" id="exZip">⬇ 照片打包</button>
-        <button class="btn" id="exDocx">⬇ 自主檢查表 Word</button>
       </div>
+      <div class="row" style="margin-top:.6rem">
+        <button class="btn sm" id="btnCfgIn">📦 匯入案場設定檔</button>
+        <button class="btn sm" id="btnCfgOut">📤 匯出案場設定檔</button>
+      </div>
+      <p class="tiny muted" id="cfgInfo" style="margin:.6rem 0 0"></p>
       <div class="row" style="margin-top:.6rem">
         <button class="btn sm" id="btnCloudSetup">☁ 線上空間設定</button>
         <div class="spacer"></div>
@@ -305,10 +331,10 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     </div>
     <div class="card">
       <div class="tblwrap"><table>
-        <thead><tr><th>編號</th><th>日期</th><th>區域樓層</th><th>分項工程</th><th>流程</th>
-          <th>位置</th><th>檢查人</th><th>合格</th><th>缺失</th><th>狀態</th><th></th></tr></thead>
+        <thead><tr><th>棟別</th><th>樓層</th><th>系統</th><th>標單項數</th>
+          <th>已清點項數</th><th>完成率</th></tr></thead>
         <tbody id="tbody"></tbody></table></div>
-      <div class="empty" id="tblEmpty"><div class="big">🗂</div><div>還沒有查驗紀錄</div></div>
+      <div class="empty" id="tblEmpty"><div class="big">🗂</div><div>還沒有清點紀錄</div></div>
     </div>
   </section>
 </main>
@@ -322,19 +348,22 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
 
 <dialog id="dlgWho"><form method="dialog" class="dlg">
   <h3 style="margin-bottom:.2rem" id="whoCase">案場</h3>
-  <p class="tiny muted" style="margin:0 0 .8rem">填一次就好，之後會自動帶出。</p>
-  <label class="f"><span>檢查人員</span>
+  <p class="tiny muted" style="margin:0 0 .8rem">姓名填一次就好，之後會自動帶出。</p>
+  <label class="f" id="whoPassRow"><span>案場密碼</span>
+    <input type="password" id="whoPass" autocomplete="off"></label>
+  <label class="f"><span>清點人員</span>
     <input type="text" id="whoName" placeholder="姓名" autocomplete="name"></label>
-  <div class="row"><button class="btn primary" value="ok">開始查驗</button>
+  <div class="row"><button class="btn primary" value="ok">開始清點</button>
     <button class="btn" value="cancel">取消</button></div>
 </form></dialog>
 
 <dialog id="dlgAdmin"><form method="dialog" class="dlg">
-  <h3 style="margin-bottom:.2rem" id="admTitle">管理者登入</h3>
-  <p class="tiny muted" style="margin:0 0 .8rem" id="admNote"></p>
+  <h3 style="margin-bottom:.2rem">管理者登入</h3>
+  <p class="tiny muted" style="margin:0 0 .8rem">
+    密碼由案場設定檔帶入，不在這個網站的程式裡。登入後才會出現「後台」分頁。</p>
   <label class="f"><span>管理者密碼</span>
     <input type="password" id="admPass" autocomplete="current-password"></label>
-  <div class="row"><button class="btn primary" value="ok" id="admOk">登入</button>
+  <div class="row"><button class="btn primary" value="ok">登入</button>
     <button class="btn" value="cancel">取消</button></div>
 </form></dialog>
 
@@ -351,15 +380,6 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
     <button class="btn" value="cancel">取消</button></div>
 </form></dialog>
 
-<dialog id="dlgSite"><form method="dialog" class="dlg">
-  <h3 style="margin-bottom:.6rem">工地設定</h3>
-  <p class="tiny muted" style="margin:0 0 .8rem">會印在每張檢查表的表頭，只存在這支手機。</p>
-  <label class="f"><span>工程名稱</span><input type="text" id="sName"></label>
-  <label class="f"><span>承攬廠商</span><input type="text" id="sVendor"></label>
-  <label class="f"><span>預設檢查人</span><input type="text" id="sBy"></label>
-  <div class="row"><button class="btn primary" value="ok">儲存</button>
-    <button class="btn" value="cancel">取消</button></div>
-</form></dialog>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js" defer></script>
