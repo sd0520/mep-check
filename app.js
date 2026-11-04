@@ -33,14 +33,12 @@ let CFG = { by: "" };
 try { Object.assign(CFG, JSON.parse(localStorage.getItem(CFG_KEY) || "{}")); } catch (e) {}
 function saveCfg() { try { localStorage.setItem(CFG_KEY, JSON.stringify(CFG)); } catch (e) {} }
 
-const PACK_KEY = "mepcheck.pack";          // 案場設定檔的檔頭（不含項目）
-let PACK = null;
-try { PACK = JSON.parse(localStorage.getItem(PACK_KEY) || "null"); } catch (e) {}
-function savePack() {
-  try {
-    if (PACK) localStorage.setItem(PACK_KEY, JSON.stringify(PACK));
-    else localStorage.removeItem(PACK_KEY);
-  } catch (e) {}
+/* 這台裝置已經輸入過密碼的案場（案場密碼只問第一次） */
+const OPEN_KEY = "mepcheck.opened";
+let OPENED = {};
+try { OPENED = JSON.parse(localStorage.getItem(OPEN_KEY) || "{}"); } catch (e) {}
+function saveOpened() {
+  try { localStorage.setItem(OPEN_KEY, JSON.stringify(OPENED)); } catch (e) {}
 }
 
 /* ---------- 橫幅時間 ---------- */
@@ -125,14 +123,7 @@ async function loadCases() {
     const r = await fetch("cases.json", { cache: "no-cache" });
     CASES = (await r.json()).案場 || [];
   } catch (e) { CASES = []; }
-  if (PACK && !CASES.some((c) => c.代號 === PACK.案場代號)) {
-    CASES.push({ 代號: PACK.案場代號, 名稱: PACK.案場, 副標: PACK.說明 || "",
-      圖示: "🏗", 功能: ["清查"] });
-  }
 }
-
-/* 這個案場的設定檔進來了沒 */
-const packOf = (c) => (PACK && PACK.案場代號 === c.代號) ? PACK : null;
 
 function renderCases() {
   const box = $("caseBox");
@@ -142,24 +133,21 @@ function renderCases() {
     return;
   }
   box.innerHTML = CASES.map((c, i) => {
-    const p = packOf(c);
-    const sub = p ? `${esc(c.副標 || "")}・${p.項目數} 項`
-                  : `${esc(c.副標 || "")}・點一下匯入設定檔`;
+    const unlocked = !c.案場密碼雜湊 || OPENED[c.代號];
     return `<button class="case" data-i="${i}">
       <span class="ic">${esc(c.圖示 || "🏗")}</span>
-      <span class="tx"><b>${esc(c.名稱)}</b><span>${sub}</span></span>
-      <span class="go">${p ? "🔒" : "⬇"}</span>
+      <span class="tx"><b>${esc(c.名稱)}</b><span>${esc(c.副標 || "")}</span></span>
+      <span class="go">${unlocked ? "›" : "🔒"}</span>
     </button>`;
   }).join("");
 
   box.querySelectorAll("[data-i]").forEach((b) => {
     b.onclick = () => {
       const c = CASES[+b.dataset.i];
-      const p = packOf(c);
-      if (!p) { importPack(c); return; }
-      pendingCase = p;
+      pendingCase = c;
       $("whoCase").textContent = c.名稱;
-      $("whoPassRow").hidden = !p.案場密碼雜湊;
+      /* 密碼只問第一次：這台裝置開過就不再問 */
+      $("whoPassRow").hidden = !c.案場密碼雜湊 || !!OPENED[c.代號];
       $("whoPass").value = "";
       $("whoName").value = CFG.by || "";
       $("dlgWho").showModal();
@@ -171,15 +159,17 @@ $("dlgWho").addEventListener("close", async () => {
   if ($("dlgWho").returnValue !== "ok" || !pendingCase) return;
   const who = $("whoName").value.trim();
   if (!who) { toast("請填清點人員姓名"); return; }
-  if (pendingCase.案場密碼雜湊) {
+  if (pendingCase.案場密碼雜湊 && !OPENED[pendingCase.代號]) {
     const p = $("whoPass").value; $("whoPass").value = "";
     if (!p) { toast("請輸入案場密碼"); return; }
     if (await sha256(pendingCase.鹽 + ":" + p) !== pendingCase.案場密碼雜湊) {
       toast("案場密碼不正確"); return;
     }
+    OPENED[pendingCase.代號] = true; saveOpened();
+    renderCases();
   }
   CFG.by = who; saveCfg();
-  activeCase = CASES.find((c) => c.代號 === pendingCase.案場代號) || null;
+  activeCase = pendingCase;
   renderMenu();
   show("vMenu");
 });
@@ -210,7 +200,7 @@ function renderMenu() {
 $("btnMenuBack").onclick = () => { show("vList"); renderList(); };
 
 async function startTally() {
-  if (!base.length) { toast("這個案場還沒有標單基準，請管理者匯入設定檔"); return; }
+  if (!(await ensureBase(activeCase))) return;
   newDraft(CFG.by);
   await renderForm();
   show("vForm");
@@ -412,7 +402,7 @@ $("kSave").onclick = async () => {
   const rec = Object.assign({}, check, {
     id: editingCheck || ("r" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)),
     kind: "check", code,
-    caseName: (activeCase && activeCase.名稱) || (PACK && PACK.案場) || "",
+    caseName: (activeCase && activeCase.名稱) || "",
     caseId: (activeCase && activeCase.代號) || "",
     result: c.fail > 0 ? "fail" : "pass",
     savedAt: Date.now(), cloudAt: 0,
@@ -460,6 +450,40 @@ $("kPrint").onclick = async () => {
     (shots.length ? '<h3 style="margin-top:10pt">自檢照片</h3>' + shots.join("") : "");
   window.print();
 };
+
+/* ---------- 基準 ----------
+   標單數量放在 repo 的資料檔，cases.json 的「基準」欄位指過去。
+   首次用到時抓下來存進 IndexedDB，之後離線照常。 */
+let baseCase = "";
+
+async function ensureBase(c) {
+  if (!c || !c.基準) { toast("這個案場沒有設定標單基準"); return false; }
+  if (baseCase === c.代號 && base.length) return true;
+  try {
+    base = (await dbAll("baseline")).filter((r) => r.case === c.代號);
+    if (base.length) { baseCase = c.代號; return true; }
+  } catch (e) {}
+  toast("第一次使用，正在下載標單基準…");
+  try {
+    const r = await fetch(c.基準, { cache: "force-cache" });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    const d = await r.json();
+    const store = idb.transaction("baseline", "readwrite").objectStore("baseline");
+    for (const x of d.項目) store.put({ k: c.代號 + "|" + x.b + "|" + x.f + "|" + x.c, case: c.代號, ...x });
+    await new Promise((res, rej) => {
+      store.transaction.oncomplete = res;
+      store.transaction.onerror = () => rej(store.transaction.error);
+    });
+    base = (await dbAll("baseline")).filter((x) => x.case === c.代號);
+    baseCase = c.代號;
+    toast("標單基準已就緒　" + base.length + " 項");
+    return true;
+  } catch (e) {
+    toast(navigator.onLine ? "下載標單基準失敗：" + e.message
+                           : "第一次使用清查需要網路，下載過就能離線用");
+    return false;
+  }
+}
 
 /* ---------- 基準 ---------- */
 const bKey = (b, f, c) => b + "|" + f + "|" + c;
@@ -647,7 +671,8 @@ $("btnSave").onclick = async () => {
   }
   const rec = {
     id: editingId || ("r" + Date.now() + Math.random().toString(36).slice(2, 6)),
-    code, caseName: (PACK && PACK.案場) || "", caseId: (PACK && PACK.案場代號) || "",
+    code, caseName: (activeCase && activeCase.名稱) || "",
+    caseId: (activeCase && activeCase.代號) || "",
     bldg: draft.bldg, floor: draft.floor, sys: draft.sys,
     date: draft.date, by, note: draft.note || "",
     lines, photos: draft.photos.slice(), savedAt: Date.now(), cloudAt: 0,
@@ -749,7 +774,7 @@ $("btnPrint").onclick = async () => {
       <div>SITE QUANTITY TALLY</div></div>
       <div class="n">${esc(draft.code || roc(draft.date))}</div></div>
     <table><tbody>
-      <tr><th style="width:18%">案場</th><td colspan="3">${esc((PACK && PACK.案場) || "")}</td></tr>
+      <tr><th style="width:18%">案場</th><td colspan="3">${esc((activeCase && activeCase.名稱) || "")}</td></tr>
       <tr><th>棟別樓層</th><td>${esc(draft.bldg)} ${esc(draft.floor)}</td>
           <th style="width:18%">系統</th><td>${esc(draft.sys)}</td></tr>
       <tr><th>清點日期</th><td>民國 ${esc(roc(draft.date))}</td>
@@ -778,7 +803,7 @@ $("btnBackup").onclick = async () => {
   if (!records.length) { toast("還沒有資料可備份"); return; }
   toast("打包中…");
   const zip = new JSZip();
-  zip.file("records.json", JSON.stringify({ me: CFG, pack: PACK, records }, null, 1));
+  zip.file("records.json", JSON.stringify({ me: CFG, records }, null, 1));
   const pf = zip.folder("photos");
   const photos = await dbAll("photos");
   const used = new Set();
@@ -821,54 +846,6 @@ $("btnImport").onclick = () => {
 };
 
 /* ---------- 案場設定檔 ---------- */
-async function loadPack(obj) {
-  if (!obj || !Array.isArray(obj.項目)) throw new Error("不是案場設定檔");
-  await dbClear("baseline");
-  const store = idb.transaction("baseline", "readwrite").objectStore("baseline");
-  for (const r of obj.項目) store.put({ k: bKey(r.b, r.f, r.c), ...r });
-  await new Promise((res, rej) => {
-    store.transaction.oncomplete = res; store.transaction.onerror = () => rej(store.transaction.error);
-  });
-  PACK = { 版本: obj.版本, 案場: obj.案場, 案場代號: obj.案場代號, 說明: obj.說明,
-    來源: obj.來源, 產生日期: obj.產生日期, 鹽: obj.鹽,
-    案場密碼雜湊: obj.案場密碼雜湊 || "", 管理者密碼雜湊: obj.管理者密碼雜湊 || "",
-    項目數: obj.項目.length };
-  savePack();
-  base = await dbAll("baseline");
-}
-/* want：點進去的那個案場；沒給就是後台的一般匯入 */
-function importPack(want) {
-  const inp = document.createElement("input");
-  inp.type = "file"; inp.accept = ".json,application/json";
-  inp.onchange = async () => {
-    const f = (inp.files || [])[0]; if (!f) return;
-    toast("匯入中…");
-    try {
-      const obj = JSON.parse(await f.text());
-      if (want && obj.案場代號 && want.代號 && obj.案場代號 !== want.代號) {
-        toast("這份是「" + (obj.案場 || "別的案場") + "」的設定檔，不是「" + want.名稱 + "」");
-        return;
-      }
-      await loadPack(obj);
-      await loadCases();
-      renderCases();
-      if (adminOn) renderAdmin();
-      toast("已匯入 " + PACK.案場 + "　" + PACK.項目數 + " 項");
-    } catch (e) { toast("匯入失敗：" + e.message); }
-  };
-  inp.click();
-}
-$("btnCfgIn").onclick = () => importPack(null);
-$("btnCfgOut").onclick = async () => {
-  if (!PACK || !base.length) { toast("還沒有案場設定檔"); return; }
-  const obj = Object.assign({}, PACK);
-  delete obj.項目數;
-  obj.項目 = base.map(({ k, ...r }) => r);
-  saveFile("職人百寶箱_案場設定檔_" + safe(PACK.案場) + ".json",
-    new Blob([JSON.stringify(obj)], { type: "application/json" }));
-  toast("已匯出，請用 LINE 傳給同仁");
-};
-
 /* ---------- 管理者 ----------
    密碼雜湊來自案場設定檔，不在這個網站的程式裡。 */
 let adminOn = false;
@@ -876,11 +853,9 @@ function paintAdminTab() {
   $("tabAdmin").hidden = !adminOn;
   if (!adminOn && !$("vAdmin").hidden) show("vList");
 }
+const adminCase = () => CASES.find((c) => c.管理者密碼雜湊) || null;
 $("btnAdmin").onclick = () => {
-  if (!PACK || !PACK.管理者密碼雜湊) {
-    toast("請先匯入案場設定檔，管理者密碼在裡面");
-    importPack(null); return;
-  }
+  if (!adminCase()) { toast("這個網站還沒有設定管理者密碼"); return; }
   $("admPass").value = "";
   $("dlgAdmin").showModal();
 };
@@ -888,7 +863,10 @@ $("dlgAdmin").addEventListener("close", async () => {
   if ($("dlgAdmin").returnValue !== "ok") return;
   const v = $("admPass").value; $("admPass").value = "";
   if (!v) { toast("請輸入密碼"); return; }
-  if (await sha256(PACK.鹽 + ":" + v) !== PACK.管理者密碼雜湊) { toast("密碼不正確"); return; }
+  const ac = adminCase();
+  if (!ac || await sha256(ac.鹽 + ":" + v) !== ac.管理者密碼雜湊) {
+    toast("密碼不正確"); return;
+  }
   adminOn = true; paintAdminTab(); renderAdmin(); show("vAdmin");
   toast("已登入管理者");
 });
@@ -1032,6 +1010,12 @@ function groupStats() {
 }
 
 function renderAdmin() {
+  if (!base.length && CASES.length) {
+    dbAll("baseline").then((all) => {
+      if (!all.length) return;
+      base = all; baseCase = all[0].case || ""; renderAdmin();
+    }).catch(() => {});
+  }
   const acc = tallyMap();
   const counted = base.filter((r) => (acc.get(bKey(r.b, r.f, r.c)) || 0) > 0).length;
   const over = base.filter((r) => (acc.get(bKey(r.b, r.f, r.c)) || 0) > r.q).length;
@@ -1048,9 +1032,9 @@ function renderAdmin() {
      <div class="stat"><b>${checkRecs.length}</b><span>自檢筆數</span></div>
      <div class="stat${failItems ? " bad" : ""}"><b>${failItems}</b><span>自檢缺失項次</span></div>`;
 
-  $("cfgInfo").textContent = PACK
-    ? `案場設定檔：${PACK.案場}　${PACK.項目數} 項　產生於 ${PACK.產生日期 || "—"}`
-    : "尚未匯入案場設定檔，現場無法開始清點。";
+  $("cfgInfo").textContent = base.length
+    ? `標單基準：${baseCase || "—"}　${base.length} 項（已存在這台裝置）`
+    : "標單基準會在第一次進入清查時自動下載。";
 
   const rows = groupStats();
   $("tblEmpty").hidden = rows.length > 0;
@@ -1175,8 +1159,11 @@ $("exZip").onclick = async () => {
   try {
     idb = await openDB();
     records = await dbAll("records");
-    base = await dbAll("baseline");
-    if (PACK) PACK.項目數 = base.length;
+    /* 舊版的 baseline 沒有 case 欄位，留著只會干擾統計 */
+    const all = await dbAll("baseline");
+    const legacy = all.filter((x) => !x.case);
+    if (legacy.length) { await dbClear("baseline"); }
+    else if (all.length) { base = all; baseCase = all[0].case || ""; }
   } catch (e) {
     $("offTip").hidden = false;
     $("offTip").textContent = "這個瀏覽器不支援本機儲存，資料無法保存。請改用 Chrome 或 Safari。";
