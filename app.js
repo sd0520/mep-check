@@ -987,9 +987,16 @@ $("btnCloudPush").onclick = async () => {
     paintCloud("上傳中… " + (i + 1) + "/" + records.length + "　" + r.code);
     try {
       const photos = [];
-      for (const pid of (r.photos || [])) {
-        const ph = await dbGet("photos", pid); if (!ph) continue;
-        photos.push({ id: pid, b64: await blobToB64(ph.blob) });
+      if (kindOf(r) === "tally") {
+        for (const pid of (r.photos || [])) {
+          const ph = await dbGet("photos", pid); if (!ph) continue;
+          photos.push({ id: pid, b64: await blobToB64(ph.blob) });
+        }
+      } else {
+        for (const it of (r.items || [])) for (const pid of (it.photos || [])) {
+          const ph = await dbGet("photos", pid); if (!ph) continue;
+          photos.push({ id: pid, item: it.item, b64: await blobToB64(ph.blob) });
+        }
       }
       await cloudCall({ action: "push", record: r, photos }, 120000);
       r.cloudAt = Date.now(); await dbPut("records", r); ok++;

@@ -1,5 +1,5 @@
 /* 離線快取：App 外殼 + 匯出用函式庫 */
-const CACHE = 'mepcheck-v9';
+const CACHE = 'mepcheck-v10';
 const SHELL = [
   './', './index.html', './app.js', './cases.json', './manifest.webmanifest',
   './icon-192.png', './icon-512.png',
