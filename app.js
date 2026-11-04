@@ -114,31 +114,60 @@ $("btnBack").onclick = () => { show("vList"); renderList(); };
 const fill = (el, arr, cur) => { el.innerHTML = arr.map((v) =>
   `<option${v === cur ? " selected" : ""}>${esc(v)}</option>`).join(""); };
 
-/* ---------- 案場 ---------- */
+/* ---------- 案場 ----------
+   清單放在 cases.json（只有名稱與功能），標單基準與密碼一律來自匯入的設定檔。
+   這樣卡片永遠看得到，沒有設定檔時也知道該找誰要。 */
+let CASES = [];
 let pendingCase = null;
+
+async function loadCases() {
+  try {
+    const r = await fetch("cases.json", { cache: "no-cache" });
+    CASES = (await r.json()).案場 || [];
+  } catch (e) { CASES = []; }
+  if (PACK && !CASES.some((c) => c.代號 === PACK.案場代號)) {
+    CASES.push({ 代號: PACK.案場代號, 名稱: PACK.案場, 副標: PACK.說明 || "",
+      圖示: "🏗", 功能: ["清查"] });
+  }
+}
+
+/* 這個案場的設定檔進來了沒 */
+const packOf = (c) => (PACK && PACK.案場代號 === c.代號) ? PACK : null;
 
 function renderCases() {
   const box = $("caseBox");
-  if (!PACK) {
+  if (!CASES.length) {
     box.innerHTML = `<div class="card pad tiny muted" style="text-align:center">
-      尚未匯入案場設定檔<br>請工務所用 LINE 傳檔案給你，
-      再由管理者在後台「📦 匯入案場設定檔」</div>`;
+      還沒有任何案場</div>`;
     return;
   }
-  box.innerHTML = `<button class="case" id="caseBtn">
-      <span class="ic">🏗</span>
-      <span class="tx"><b>${esc(PACK.案場)}</b><span>${esc(PACK.說明 || "現場清點")}
-        ・${PACK.項目數} 項</span></span>
-      <span class="go">${PACK.案場密碼雜湊 ? "🔒" : "›"}</span>
+  box.innerHTML = CASES.map((c, i) => {
+    const p = packOf(c);
+    const sub = p ? `${esc(c.副標 || "")}・${p.項目數} 項`
+                  : `${esc(c.副標 || "")}・尚未匯入設定檔`;
+    return `<button class="case" data-i="${i}">
+      <span class="ic">${esc(c.圖示 || "🏗")}</span>
+      <span class="tx"><b>${esc(c.名稱)}</b><span>${sub}</span></span>
+      <span class="go">${p ? "🔒" : "⬇"}</span>
     </button>`;
-  $("caseBtn").onclick = () => {
-    pendingCase = PACK;
-    $("whoCase").textContent = PACK.案場;
-    $("whoPassRow").hidden = !PACK.案場密碼雜湊;
-    $("whoPass").value = "";
-    $("whoName").value = CFG.by || "";
-    $("dlgWho").showModal();
-  };
+  }).join("");
+
+  box.querySelectorAll("[data-i]").forEach((b) => {
+    b.onclick = () => {
+      const c = CASES[+b.dataset.i];
+      const p = packOf(c);
+      if (!p) {
+        toast("「" + c.名稱 + "」還沒有設定檔，請管理者在後台匯入");
+        return;
+      }
+      pendingCase = p;
+      $("whoCase").textContent = c.名稱;
+      $("whoPassRow").hidden = !p.案場密碼雜湊;
+      $("whoPass").value = "";
+      $("whoName").value = CFG.by || "";
+      $("dlgWho").showModal();
+    };
+  });
 }
 
 $("dlgWho").addEventListener("close", async () => {
@@ -513,6 +542,7 @@ $("btnCfgIn").onclick = () => {
     toast("匯入中…");
     try {
       await loadPack(JSON.parse(await f.text()));
+      await loadCases();
       renderCases(); renderAdmin();
       toast("已匯入 " + PACK.案場 + "　" + PACK.項目數 + " 項");
     } catch (e) { toast("匯入失敗：" + e.message); }
@@ -775,6 +805,7 @@ $("exZip").onclick = async () => {
     $("offTip").hidden = false;
     $("offTip").textContent = "這個瀏覽器不支援本機儲存，資料無法保存。請改用 Chrome 或 Safari。";
   }
+  await loadCases();
   renderCases(); renderList(); paintAdminTab();
   const showOff = () => { $("offTip").hidden = navigator.onLine; };
   window.addEventListener("online", showOff); window.addEventListener("offline", showOff); showOff();

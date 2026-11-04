@@ -1,7 +1,7 @@
 /* 離線快取：App 外殼 + 匯出用函式庫 */
-const CACHE = 'mepcheck-v7';
+const CACHE = 'mepcheck-v8';
 const SHELL = [
-  './', './index.html', './app.js', './manifest.webmanifest',
+  './', './index.html', './app.js', './cases.json', './manifest.webmanifest',
   './icon-192.png', './icon-512.png',
   './hero.jpg', './bg.jpg',
   'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js',
