@@ -142,32 +142,47 @@ function renderCases() {
   }).join("");
 
   box.querySelectorAll("[data-i]").forEach((b) => {
-    b.onclick = () => {
-      const c = CASES[+b.dataset.i];
-      pendingCase = c;
-      $("whoCase").textContent = c.名稱;
-      /* 密碼只問第一次：這台裝置開過就不再問 */
-      $("whoPassRow").hidden = !c.案場密碼雜湊 || !!OPENED[c.代號];
-      $("whoPass").value = "";
-      $("whoName").value = CFG.by || "";
-      $("dlgWho").showModal();
-    };
+    b.onclick = () => openCase(CASES[+b.dataset.i]);
   });
 }
+
+/* 第一步：密碼。這台裝置開過就跳過，直接問姓名。 */
+function openCase(c) {
+  pendingCase = c;
+  if (c.案場密碼雜湊 && !OPENED[c.代號]) {
+    $("passCase").textContent = c.名稱;
+    $("casePass").value = "";
+    $("dlgPass").showModal();
+    return;
+  }
+  askWho(c);
+}
+
+/* 第二步：檢查人員 */
+function askWho(c) {
+  pendingCase = c;
+  $("whoCase").textContent = c.名稱;
+  $("whoName").value = CFG.by || "";
+  $("dlgWho").showModal();
+}
+
+$("dlgPass").addEventListener("close", async () => {
+  if ($("dlgPass").returnValue !== "ok" || !pendingCase) return;
+  const c = pendingCase;
+  const v = $("casePass").value; $("casePass").value = "";
+  if (!v) { toast("請輸入案場密碼"); openCase(c); return; }
+  if (await sha256(c.鹽 + ":" + v) !== c.案場密碼雜湊) {
+    toast("案場密碼不正確"); openCase(c); return;
+  }
+  OPENED[c.代號] = true; saveOpened();
+  renderCases();
+  askWho(c);
+});
 
 $("dlgWho").addEventListener("close", async () => {
   if ($("dlgWho").returnValue !== "ok" || !pendingCase) return;
   const who = $("whoName").value.trim();
-  if (!who) { toast("請填清點人員姓名"); return; }
-  if (pendingCase.案場密碼雜湊 && !OPENED[pendingCase.代號]) {
-    const p = $("whoPass").value; $("whoPass").value = "";
-    if (!p) { toast("請輸入案場密碼"); return; }
-    if (await sha256(pendingCase.鹽 + ":" + p) !== pendingCase.案場密碼雜湊) {
-      toast("案場密碼不正確"); return;
-    }
-    OPENED[pendingCase.代號] = true; saveOpened();
-    renderCases();
-  }
+  if (!who) { toast("請填檢查人員姓名"); askWho(pendingCase); return; }
   CFG.by = who; saveCfg();
   activeCase = pendingCase;
   renderMenu();

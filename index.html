@@ -398,12 +398,19 @@ dialog::backdrop{background:rgba(0,0,0,.45)}
   <button id="tabAdmin" aria-pressed="false" hidden><span class="ic">🗂</span>後台</button>
 </nav>
 
+<dialog id="dlgPass"><form method="dialog" class="dlg">
+  <h3 style="margin-bottom:.2rem" id="passCase">案場</h3>
+  <p class="tiny muted" style="margin:0 0 .8rem">這台裝置只需要輸入一次。</p>
+  <label class="f"><span>案場密碼</span>
+    <input type="password" id="casePass" autocomplete="off"></label>
+  <div class="row"><button class="btn primary" value="ok">確認</button>
+    <button class="btn" value="cancel">取消</button></div>
+</form></dialog>
+
 <dialog id="dlgWho"><form method="dialog" class="dlg">
   <h3 style="margin-bottom:.2rem" id="whoCase">案場</h3>
   <p class="tiny muted" style="margin:0 0 .8rem">姓名填一次就好，之後會自動帶出。</p>
-  <label class="f" id="whoPassRow"><span>案場密碼</span>
-    <input type="password" id="whoPass" autocomplete="off"></label>
-  <label class="f"><span>清點人員</span>
+  <label class="f"><span>檢查人員</span>
     <input type="text" id="whoName" placeholder="姓名" autocomplete="name"></label>
   <div class="row"><button class="btn primary" value="ok">進入案場</button>
     <button class="btn" value="cancel">取消</button></div>
