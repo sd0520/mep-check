@@ -144,7 +144,7 @@ function renderCases() {
   box.innerHTML = CASES.map((c, i) => {
     const p = packOf(c);
     const sub = p ? `${esc(c.副標 || "")}・${p.項目數} 項`
-                  : `${esc(c.副標 || "")}・尚未匯入設定檔`;
+                  : `${esc(c.副標 || "")}・點一下匯入設定檔`;
     return `<button class="case" data-i="${i}">
       <span class="ic">${esc(c.圖示 || "🏗")}</span>
       <span class="tx"><b>${esc(c.名稱)}</b><span>${sub}</span></span>
@@ -156,10 +156,7 @@ function renderCases() {
     b.onclick = () => {
       const c = CASES[+b.dataset.i];
       const p = packOf(c);
-      if (!p) {
-        toast("「" + c.名稱 + "」還沒有設定檔，請管理者在後台匯入");
-        return;
-      }
+      if (!p) { importPack(c); return; }
       pendingCase = p;
       $("whoCase").textContent = c.名稱;
       $("whoPassRow").hidden = !p.案場密碼雜湊;
@@ -839,21 +836,29 @@ async function loadPack(obj) {
   savePack();
   base = await dbAll("baseline");
 }
-$("btnCfgIn").onclick = () => {
+/* want：點進去的那個案場；沒給就是後台的一般匯入 */
+function importPack(want) {
   const inp = document.createElement("input");
   inp.type = "file"; inp.accept = ".json,application/json";
   inp.onchange = async () => {
     const f = (inp.files || [])[0]; if (!f) return;
     toast("匯入中…");
     try {
-      await loadPack(JSON.parse(await f.text()));
+      const obj = JSON.parse(await f.text());
+      if (want && obj.案場代號 && want.代號 && obj.案場代號 !== want.代號) {
+        toast("這份是「" + (obj.案場 || "別的案場") + "」的設定檔，不是「" + want.名稱 + "」");
+        return;
+      }
+      await loadPack(obj);
       await loadCases();
-      renderCases(); renderAdmin();
+      renderCases();
+      if (adminOn) renderAdmin();
       toast("已匯入 " + PACK.案場 + "　" + PACK.項目數 + " 項");
     } catch (e) { toast("匯入失敗：" + e.message); }
   };
   inp.click();
-};
+}
+$("btnCfgIn").onclick = () => importPack(null);
 $("btnCfgOut").onclick = async () => {
   if (!PACK || !base.length) { toast("還沒有案場設定檔"); return; }
   const obj = Object.assign({}, PACK);
@@ -873,7 +878,8 @@ function paintAdminTab() {
 }
 $("btnAdmin").onclick = () => {
   if (!PACK || !PACK.管理者密碼雜湊) {
-    toast("這台裝置還沒有案場設定檔，無法驗證管理者密碼"); return;
+    toast("請先匯入案場設定檔，管理者密碼在裡面");
+    importPack(null); return;
   }
   $("admPass").value = "";
   $("dlgAdmin").showModal();
